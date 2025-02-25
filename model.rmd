@@ -95,10 +95,35 @@ obj_coefficients <- as.vector(t(rank)) # flatten ranking matrix
 set.objfn(lp_model, obj_coefficients)
 ```
 
-```{r constraints}
+```{r constraint 1}
+# constraint 1: each group is assigned to exactly one team
 
-# constraint 1: each group is assigned exactly one team
+'''
+iterate over each group g
+for each group g, the sum of its assignment values across all teams is exactly 1
 
+A_gtj is the binary decision variable indicating whether group g is assigned to team j in project t.
 
+The sum of all binary decision variables corresponding to group g must be exactly 1
+e.g. suppose
+there are 5 projects
+we have 3 teams for each project
+so we have a total of 15 teams
+suppose group 1 can be assigned to teams, we set:
+A_1_1_1 + A_1_1_2 + ...... + A_1_1_15 = 1
+to sure that group 1 gets exactly one team
+'''
+
+for (g in 1:num_groups) { # for each group g
+
+    # create a zero vector of size (num_groups x num_teams)
+    A_gtj <- rep(0, num_groups * num_teams)
+
+    # update the vector where only the decision variables corresponding to group g are set to 1, while ohter values remain 0
+    A_gtj[((g-1) * num_teams + 1): (g * num_teams)] <- 1
+
+    #ensure each group is assigned exactly once
+    add.constraint(lp_model, A_gtj, '=', 1) 
+}
 
 ```
