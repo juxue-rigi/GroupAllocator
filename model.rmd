@@ -1,0 +1,104 @@
+---
+title: "Model Formulation"
+author: "Ju Xue"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("lpSolveAPI")
+library(lpSolveAPI)
+```
+
+# define sample data inputs
+the data will later be obtained from student survey from frontend software.
+the data should be converted to input format to model 
+below is manual hardcoding for streamlining thoughts only.
+```{r data}
+
+# input 1: students
+n <- 100
+students <- 1:n # n students
+
+# input 2: self-formed groups
+groups <- list(
+    c(e123456,e654321), # group 1 has 2 members
+    c(,,,),
+    c(e264921) # individual
+    ...
+)
+
+group_sizes <- sapply(groups, length) # extract size of groups
+
+# input 3: projects
+projects <- c("P1", "P2", "P3", "P4", "P5") # list of projects available
+teams_per_project <- 2 # set minimum threshold for teams per project
+b <- 6   # ideal team size
+
+# input 4: group preferences over project topics
+# higher is better
+
+rank <- matrix(
+    c(1,2,3,4,5), # group 1 prefers P1 over P2 over P3 over P3 over P5 
+    c(2,4,1,5,3), # group 1 prefers P3 over P1 over P5 over P2 over P4
+    ...
+)
+nrow = length(groups), byrow = TRUE
+rownames(rank) <- paste0("GROUP", 1:length(groups)) # row name being group number
+colnames(rank) <- projects # row number being projects
+
+# input 5: student skill scores
+# the software will get students to choose their score for each skill e.g. from 1-5
+skills <- c("python", "data", "statistics", "language", "visual") # list of skills considered
+skills_scores <- c(3, 4, 2, 5, 3)  # one per student
+skill_threshold <- 0.2  # at least 20% of each team must have skills in Statistics
+
+# group skill scores (sum within each group)
+group_skills <- sapply(groups, function(g) sum(skills[g]))
+
+
+# input 6: group preferences
+preferences <- list(
+    c("online", "twice a week"), 
+    c("face-to-face", "once a week"),
+    ...
+) 
+# later task: need to do binary encoding e.g.  1 = online, 0 = face-to-face
+
+```
+
+# the model
+Integer Programming (IP) model implementation using the lpSolve package
+```{r model}
+
+num_groups <- length(groups)
+num_projects <- length(projects)
+
+# total teams across all projects
+num_teams <- num_projects * teams_per_project
+
+# initialize a LP model (without constraints) 
+lp_model <- make.lp(0, num_groups * num_teams)  
+
+# set objective function
+'''
+maximizing preference (project ranking) satisfaction score
+
+obj function and model initialization: not sure, will look further
+'''
+obj_coefficients <- as.vector(t(rank)) # flatten ranking matrix
+set.objfn(lp_model, obj_coefficients)
+```
+
+```{r constraints}
+
+# constraint 1: each group is assigned exactly one team
+
+
+
+```
