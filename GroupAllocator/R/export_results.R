@@ -1,0 +1,1 @@
+Outputs results in a JSON or Excel file.

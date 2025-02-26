@@ -1,0 +1,9 @@
+Package: group_allocator
+Title: Optimal Student Group Allocation
+Version: 0.1.0
+Authors@R: c(person("Ju Xue", email = "rigi.jx@gmail.com", role = c("aut", "cre")))
+Description: An R package for forming student project groups using integer programming.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Imports: lpSolveAPI, shiny, plumber, jsonlite
