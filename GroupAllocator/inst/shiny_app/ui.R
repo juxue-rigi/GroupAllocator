@@ -1,0 +1,126 @@
+library(shiny)
+
+# ------------------------------------------------------------------------------
+# Define UI for Login Page
+# ------------------------------------------------------------------------------
+login_ui <- fluidPage(
+  tags$head(
+    tags$style(HTML("
+      .center-container { 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+        align-items: center; 
+        height: 100vh; 
+        width: 100%; 
+      }
+      .form-container {
+        max-width: 1000px; 
+        width: 100%; 
+        text-align: center;
+      }
+    "))
+  ),
+
+  div(class = "center-container",
+    titlePanel("Login Page"),  # Ensure Title is centered
+    div(class = "form-container", 
+        wellPanel(  # Adds padding and a slight border
+          textInput("username", "Enter your username:"),
+          textInput("course", "Enter your course name:"),
+          actionButton("go", "Go to Project Set-up", class = "btn-primary")
+        )
+    )
+  )
+)
+
+
+
+# ------------------------------------------------------------------------------
+# Define UI for Project Setup Page
+# ------------------------------------------------------------------------------
+project_setup_ui <- fluidPage(
+  tags$head(
+    tags$style(HTML(".project-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+      }
+      .sidebar {
+        display: none;
+        position: fixed;
+        top: 0;
+        right: 0;
+        width: 250px;
+        height: 100%;
+        background: white;
+        border-left: 1px solid #ddd;
+        padding: 20px;
+        box-shadow: -2px 0 5px rgba(0,0,0,0.2);
+        z-index: 100;
+      }
+      .profile-section {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        position: relative;
+      }
+    "))
+  ),
+  
+  div(class = "project-container",
+    titlePanel(textOutput("welcome_message")),
+    
+    div(class = "profile-section",
+      tags$img(src = "/mnt/data/profile%20picture.webp", height = "40px", width = "40px", style = "border-radius: 50%; cursor: pointer;", id = "profile_pic"),
+      textOutput("profile_name")
+    ),
+    
+    div(id = "sidebar", class = "sidebar",
+      actionButton("logout", "Log Out", style = "width: 100%; background-color: red; color: white;")
+    ),
+    
+    # Ensure the form container is centered and wider
+    div(style = "width: 90%; max-width: 1400px; margin: auto;", 
+      sidebarLayout(
+        sidebarPanel(width = 3,
+          textInput("project_name", "Enter project name:"),
+          actionButton("add_project", "Add Project"),
+          uiOutput("project_list"),
+          numericInput("sub_group_size", "Max students per self-formed group:", value = 3, min = 1, max = 5),
+          numericInput("project_group_size", "Total project group size:", value = 4, min = 1, max = 10),
+          textInput("skill_name", "Enter skill:"),
+          actionButton("add_skill", "Add Skill"),
+          uiOutput("skill_list")
+        ),
+        mainPanel(width = 9,
+          div(style = "text-align: center;", 
+              textOutput("confirmation")
+          )
+        )
+      )
+    )
+  )
+)
+
+# define the dynamic UI output
+ui <- fluidPage(
+  tags$head(
+    tags$script(HTML("$(document).ready(function(){
+      $(document).on('click', '#profile_pic', function(event){
+        event.stopPropagation();
+        $('#sidebar').toggle();
+      });
+      $(document).on('click', function(event){
+        if (!$(event.target).closest('#sidebar').length && !$(event.target).is('#profile_pic')) {
+          $('#sidebar').hide();
+        }
+      });
+    });"))
+  ),
+  uiOutput("main_ui")
+)
+
