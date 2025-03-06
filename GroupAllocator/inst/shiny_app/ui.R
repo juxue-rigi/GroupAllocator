@@ -146,14 +146,17 @@ ui <- fluidPage(
 # ------------------------------------------------------------------------------
 survey_ui <- fluidPage(
   titlePanel("Student Survey"),
-  sidebarLayout(
-    sidebarPanel(
+  fluidRow(
+    column(4,
+      h3("Student Information"),
       uiOutput("student_inputs")  # name & ID fields according to sub-group size
     ),
-    mainPanel(
+    column(8,
       h3("Rank your project and sub-group preference (1st is most preferred)"),
       uiOutput("project_ranking"),
       uiOutput("subgroup_selection"),
+      h3("Rate your skills (1 = Beginner, 5 = Expert)"),
+      uiOutput("skill_ratings"),
       actionButton("submit_survey", "Submit Survey", class = "btn-primary"),
       textOutput("survey_confirmation")
     )

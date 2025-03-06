@@ -157,14 +157,53 @@ server <- function(input, output, session) {
     student_fields <- lapply(1:num_students, function(i) {
       tagList(
         textInput(paste0("student_name_", i),
-                  paste("Student", i, "Name (optional):")),
+                  paste("Student", i, "Name:")),
         textInput(paste0("student_id_", i),
-                  paste("Student", i, "ID (optional):"))
+                  paste("Student", i, "ID:"))
       )
     })
     do.call(tagList, student_fields)
   })
 
+  # Skills rating UI
+  output$skill_ratings <- renderUI({
+    req(skills())
+    skill_list <- skills()
+
+    if (length(skill_list) == 0) {
+      return(p("No skills have been defined for this project."))
+    }
+    lapply(seq_along(skill_list), function(i) {
+      skill_name <- skill_list[[i]]
+      # A container for each skill's label + radio buttons
+      div(
+        style = "margin-bottom: 30px;",
+        tags$strong(skill_name),
+        # Put radio buttons & labels in a separate div
+        div(
+          style = "position: relative; 
+                   display: inline-block; 
+                   margin-left: 10px;",
+          radioButtons(
+            inputId = paste0("skill_rating_", i),
+            label = NULL,
+            choices = 1:5,
+            inline = TRUE
+          ),
+          tags$div(
+            style = "
+              position: absolute;
+              top: 2.0em;  /* adjust if needed */
+              width: 100%;
+              display: flex;
+              justify-content: space-between;",
+            tags$span("Beginner"),
+            tags$span("Expert")
+          )
+        )
+      )
+    })
+  })
 
   ### Save Student Survey Data
   observeEvent(input$submit_survey, {
@@ -178,13 +217,14 @@ server <- function(input, output, session) {
         NULL # Ignore empty fields
       }
     })
-    student_data <- do.call(rbind, student_data)# combine filled student entries
-    if (nrow(student_data) == 0) {
+    student_data <- do.call(rbind, student_data) #combine filled student entries
+    if (is.null(student_data) || nrow(student_data) == 0) {
       showModal(modalDialog(title = "Error",
                             "At least one student must be entered.",
                             easyClose = TRUE))
       return()
     }
+
     # Get project rankings
     project_ranks <- character(0)
     if (length(projects()) > 0) {
@@ -210,18 +250,35 @@ server <- function(input, output, session) {
                                    }
                                  })
     }
+
+    # Get skill ratings
+    skill_ratings <- list()
+    if (length(skills()) > 0) {
+      skill_list <- skills()
+      skill_ratings <- sapply(seq_along(skill_list), function(i) {
+        skill_name <- skill_list[[i]]
+        rating <- input[[paste0("skill_rating_", i)]]
+        if (is.null(rating)) {
+          paste0(skill_name, ": Not rated")
+        } else {
+          paste0(skill_name, ": ", rating)
+        }
+      })
+    }
+
     # Create response data frame
     response_data <- data.frame(
       StudentData = I(list(student_data)), # store list of student names & IDs
       ProjectRanking = paste(project_ranks, collapse = " | "),
-      SubgroupChoices = paste(subgroup_choices, collapse = " | ")
+      SubgroupChoices = paste(subgroup_choices, collapse = " | "),
+      SkillRatings = paste(skill_ratings, collapse = " | ")
     )
     # Write to file
     write.table(response_data, file = "student_survey_responses.csv",
                 append = TRUE,
                 sep = ",",
                 row.names = FALSE,
-                col.names = !file.exists("student_survey_responses.csv")) 
+                col.names = !file.exists("student_survey_responses.csv"))
     output$survey_confirmation <- renderText("Survey submitted successfully!")
   })
 
