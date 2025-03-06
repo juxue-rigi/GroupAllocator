@@ -8,6 +8,17 @@ server <- function(input, output, session) {
   skills <- reactiveVal(list())
   subgroups <- reactiveVal(list())
 
+  ### UI Switching Logic
+  output$main_ui <- renderUI({
+    if (current_page() == "login") {
+      login_ui
+    } else if (current_page() == "project_setup") {
+      project_setup_ui
+    } else if (current_page() == "survey") {
+      survey_ui
+    }
+  })
+
   ### Navigation Logic
   observeEvent(input$go, {
     if (input$username != "" && input$course != "") {
@@ -49,7 +60,7 @@ server <- function(input, output, session) {
     lapply(seq_along(projects()), function(i) {
       observeEvent(input[[paste0("remove_project_", i)]], {
         projects(projects()[-i])
-      })
+      }, ignoreInit = TRUE)
     })
   })
 
@@ -75,14 +86,15 @@ server <- function(input, output, session) {
     lapply(seq_along(subgroups()), function(i) {
       observeEvent(input[[paste0("remove_subgroup_", i)]], {
         subgroups(subgroups()[-i])
-      })
+      }, ignoreInit = TRUE)
     })
   })
 
   ### Skills
   observeEvent(input$add_skill, {
     req(input$skill_name)
-    skills(c(skills(), input$skill_name))
+    current_skills <- skills()
+    skills(c(current_skills, input$skill_name))
     updateTextInput(session, "skill_name", value = "")
   })
 
@@ -100,8 +112,9 @@ server <- function(input, output, session) {
   observe({
     lapply(seq_along(skills()), function(i) {
       observeEvent(input[[paste0("remove_skill_", i)]], {
+        current_skills <- skills()
         skills(skills()[-i])
-      })
+      }, ignoreInit = TRUE)
     })
   })
 
@@ -112,22 +125,30 @@ server <- function(input, output, session) {
   ### Student Survey UI
   output$project_ranking <- renderUI({
     req(projects())
-    lapply(1 : min(4, length(projects())), function(i) {
-      selectInput(paste0("rank_project_", i),
-                  paste0(i, "st choice"),
-                  choices = projects(),
-                  selected = NULL)
-    })
+    proj_list <- projects()
+    # Only show rank choices if there are projects
+    if (length(proj_list) > 0) {
+      lapply(1:min(4, length(proj_list)), function(i) {
+        selectInput(paste0("rank_project_", i),
+                    paste0(i, "st choice"),
+                    choices = proj_list,
+                    selected = NULL)
+      })
+    }
   })
 
   output$subgroup_selection <- renderUI({
-    req(subgroups())  # Using user-entered sub-group functions
-    lapply(1:min(4, length(projects())), function(i) {
-      selectInput(paste0("subgroup_choice_", i),
-                  paste0(i, "st choice - Sub-group function"),
-                  choices = subgroups(),  # filled from project set-up
-                  selected = NULL)
-    })
+    req(subgroups())
+    sg_list <- subgroups()
+    # Only show subgroup choices if there are subgroups
+    if (length(sg_list) > 0) {
+      lapply(1:min(4, length(sg_list)), function(i) {
+        selectInput(paste0("subgroup_choice_", i),
+                    paste0(i, "st choice - Sub-group function"),
+                    choices = sg_list,
+                    selected = NULL)
+      })
+    }
   })
 
   output$student_inputs <- renderUI({
@@ -164,34 +185,45 @@ server <- function(input, output, session) {
                             easyClose = TRUE))
       return()
     }
-    project_ranks <- sapply(1:min(4, length(projects())),
-                            function(i) input[[paste0("rank_project_", i)]])
-    subgroup_choices <- sapply(1:min(4, length(subgroups())),
-                               function(i) input[[paste0("subgroup_choice_", i)]]) # nolint: line_length_linter.
+    # Get project rankings
+    project_ranks <- character(0)
+    if (length(projects()) > 0) {
+      project_ranks <- sapply(1:min(4, length(projects())),
+                              function(i) {
+                                if (!is.null(input[[paste0("rank_project_", i)]])) {
+                                  input[[paste0("rank_project_", i)]]
+                                } else {
+                                  NA
+                                }
+                              })
+    }
+
+    # Get subgroup choices
+    subgroup_choices <- character(0)
+    if (length(subgroups()) > 0) {
+      subgroup_choices <- sapply(1:min(4, length(subgroups())),
+                                 function(i) {
+                                   if (!is.null(input[[paste0("subgroup_choice_", i)]])) {
+                                     input[[paste0("subgroup_choice_", i)]]
+                                   } else {
+                                     NA
+                                   }
+                                 })
+    }
+    # Create response data frame
     response_data <- data.frame(
       StudentData = I(list(student_data)), # store list of student names & IDs
       ProjectRanking = paste(project_ranks, collapse = " | "),
       SubgroupChoices = paste(subgroup_choices, collapse = " | ")
     )
+    # Write to file
     write.table(response_data, file = "student_survey_responses.csv",
                 append = TRUE,
                 sep = ",",
                 row.names = FALSE,
-                col.names = !file.exists("student_survey_responses.csv"))
+                col.names = !file.exists("student_survey_responses.csv")) 
     output$survey_confirmation <- renderText("Survey submitted successfully!")
   })
-
-  ### UI Switching Logic
-  output$main_ui <- renderUI({
-    if (current_page() == "login") {
-      login_ui
-    } else if (current_page() == "project_setup") {
-      project_setup_ui
-    } else if (current_page() == "survey") {
-      survey_ui
-    }
-  })
-
 
   ### text display
   output$welcome_message <- renderText({
