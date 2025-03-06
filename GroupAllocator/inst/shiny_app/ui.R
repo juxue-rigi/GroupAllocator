@@ -23,18 +23,16 @@ login_ui <- fluidPage(
   ),
 
   div(class = "center-container",
-    titlePanel("Login Page"),  # Ensure Title is centered
-    div(class = "form-container", 
-        wellPanel(  # Adds padding and a slight border
-          textInput("username", "Enter your username:"),
-          textInput("course", "Enter your course name:"),
-          actionButton("go", "Go to Project Set-up", class = "btn-primary")
-        )
-    )
+      titlePanel("Login Page"),  # Ensure Title is centered
+      div(class = "form-container", 
+          wellPanel(  # Adds padding and a slight border
+            textInput("username", "Enter your username:"),
+            textInput("course", "Enter your course name:"),
+            actionButton("go", "Go to Project Set-up", class = "btn-primary")
+          )
+      )
   )
 )
-
-
 
 # ------------------------------------------------------------------------------
 # Define UI for Project Setup Page
@@ -45,9 +43,8 @@ project_setup_ui <- fluidPage(
       .project-container {
         display: flex; 
         flex-direction: column; 
-        justify-content: center; 
         align-items: center; 
-        height: 100vh; 
+        min-height: 100vh;  /* Changed to min-height */
         width: 100%; 
       }
       .sidebar {
@@ -69,68 +66,59 @@ project_setup_ui <- fluidPage(
         align-items: center;
         gap: 10px;
         padding: 10px;
-        width: 90%;
+        width: 100%;  /* Changed from 90% */
         max-width: 1400px;
-      }
-      .form-container {
-        max-width: 1000px; 
-        width: 100%; 
-        text-align: center;
       }
       .wide-input {
         width: 100%;
-      }
-      .btn-primary {
-        width: 100%;
-        margin-top: 10px;
       }
     "))
   ),
   
   div(class = "project-container",
-    titlePanel(textOutput("welcome_message")),
-    
-    div(class = "profile-section",
-      tags$img(src = "/mnt/data/profile%20picture.webp", height = "40px", width = "40px", 
-               style = "border-radius: 50%; cursor: pointer;", id = "profile_pic"),
-      textOutput("profile_name")
-    ),
-    
-    div(id = "sidebar", class = "sidebar",
-      actionButton("logout", "Log Out", style = "width: 100%; background-color: red; color: white;")
-    ),
-    
-    # Ensure the form container is centered and wider
-    div(style = "width: 100%; max-width: 1400px; margin: auto;", 
-      sidebarLayout(
-        sidebarPanel(width = 5,
-          textInput("project_name", "Enter project name:"),
-          actionButton("add_project", "Add Project"),
-          uiOutput("project_list"),
-          numericInput("sub_group_size", "Max students per self-formed group:", value = 3, min = 1, max = 5),
-          numericInput("project_group_size", "Total project group size:", value = 4, min = 1, max = 10),
-          textInput("subgroup_name", "Enter sub-group function:"),
-          actionButton("add_subgroup", "Add Sub-group"),
-          uiOutput("subgroup_list"),
-          textInput("skill_name", "Enter skill:"),
-          actionButton("add_skill", "Add Skill"),
-          uiOutput("skill_list"),
-          actionButton("generate_survey", "Generate Student Survey", class = 'btn-primary')
-        ),
-        mainPanel(width = 7,
-          div(style = "text-align: center;", 
-              textOutput("confirmation")
+      titlePanel(textOutput("welcome_message")),
+      
+      div(class = "profile-section",
+          tags$img(src = "profile.png", height = "40px", width = "40px", 
+                   style = "border-radius: 50%; cursor: pointer;", id = "profile_pic"),
+          textOutput("profile_name")
+      ),
+      
+      div(id = "sidebar", class = "sidebar",
+          actionButton("logout", "Log Out", style = "width: 100%; background-color: red; color: white;")
+      ),
+      
+      div(style = "flex-grow: 1; display: flex; justify-content: center; align-items: center; width: 100%;",
+          div(style = "width: 100%; max-width: 1400px; margin: auto;", 
+              sidebarLayout(
+                sidebarPanel(width = 5,
+                             textInput("project_name", "Enter project name:"),
+                             actionButton("add_project", "Add Project"),
+                             uiOutput("project_list"),
+                             numericInput("sub_group_size", "Max students per self-formed group:", value = 3, min = 1, max = 5),
+                             numericInput("project_group_size", "Total project group size:", value = 4, min = 1, max = 10),
+                             textInput("subgroup_name", "Enter sub-group function:"),
+                             actionButton("add_subgroup", "Add Sub-group"),
+                             uiOutput("subgroup_list"),
+                             textInput("skill_name", "Enter skill:"),
+                             actionButton("add_skill", "Add Skill"),
+                             uiOutput("skill_list"),
+                             actionButton("generate_survey", "Generate Student Survey", class = 'btn-primary')
+                ),
+                mainPanel(width = 7,
+                          div(style = "text-align: center;", 
+                              textOutput("confirmation")
+                          )
+                )
+              )
           )
-        )
       )
-    )
   )
 )
 
 # ------------------------------------------------------------------------------
-# define the dynamic UI output
+# Define the dynamic UI output
 # ------------------------------------------------------------------------------
-
 ui <- fluidPage(
   tags$head(
     tags$script(HTML("$(document).ready(function(){
@@ -150,16 +138,14 @@ ui <- fluidPage(
 )
 
 # ------------------------------------------------------------------------------
-# survey interface UI
+# Survey Interface UI
 # ------------------------------------------------------------------------------
-
 survey_ui <- fluidPage(
   titlePanel("Student Survey"),
   
   sidebarLayout(
     sidebarPanel(
-      uiOutput("student_inputs")
-      # generate name & ID fields according to sub-group size
+      uiOutput("student_inputs")  # Generate name & ID fields according to sub-group size
     ),
     mainPanel(
       h3("Rank your project and sub-group preference (1st is most preferred)"),
