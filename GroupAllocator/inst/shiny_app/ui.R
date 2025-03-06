@@ -41,18 +41,21 @@ login_ui <- fluidPage(
 # ------------------------------------------------------------------------------
 project_setup_ui <- fluidPage(
   tags$head(
-    tags$style(HTML(".project-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 100%;
+    tags$style(HTML("
+      .project-container {
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+        align-items: center; 
+        height: 100vh; 
+        width: 100%; 
       }
       .sidebar {
         display: none;
         position: fixed;
         top: 0;
         right: 0;
-        width: 250px;
+        width: 300px;
         height: 100%;
         background: white;
         border-left: 1px solid #ddd;
@@ -66,7 +69,20 @@ project_setup_ui <- fluidPage(
         align-items: center;
         gap: 10px;
         padding: 10px;
-        position: relative;
+        width: 90%;
+        max-width: 1400px;
+      }
+      .form-container {
+        max-width: 1000px; 
+        width: 100%; 
+        text-align: center;
+      }
+      .wide-input {
+        width: 100%;
+      }
+      .btn-primary {
+        width: 100%;
+        margin-top: 10px;
       }
     "))
   ),
@@ -75,7 +91,8 @@ project_setup_ui <- fluidPage(
     titlePanel(textOutput("welcome_message")),
     
     div(class = "profile-section",
-      tags$img(src = "/mnt/data/profile%20picture.webp", height = "40px", width = "40px", style = "border-radius: 50%; cursor: pointer;", id = "profile_pic"),
+      tags$img(src = "/mnt/data/profile%20picture.webp", height = "40px", width = "40px", 
+               style = "border-radius: 50%; cursor: pointer;", id = "profile_pic"),
       textOutput("profile_name")
     ),
     
@@ -84,19 +101,23 @@ project_setup_ui <- fluidPage(
     ),
     
     # Ensure the form container is centered and wider
-    div(style = "width: 90%; max-width: 1400px; margin: auto;", 
+    div(style = "width: 100%; max-width: 1400px; margin: auto;", 
       sidebarLayout(
-        sidebarPanel(width = 3,
+        sidebarPanel(width = 5,
           textInput("project_name", "Enter project name:"),
           actionButton("add_project", "Add Project"),
           uiOutput("project_list"),
           numericInput("sub_group_size", "Max students per self-formed group:", value = 3, min = 1, max = 5),
           numericInput("project_group_size", "Total project group size:", value = 4, min = 1, max = 10),
+          textInput("subgroup_name", "Enter sub-group function:"),
+          actionButton("add_subgroup", "Add Sub-group"),
+          uiOutput("subgroup_list"),
           textInput("skill_name", "Enter skill:"),
           actionButton("add_skill", "Add Skill"),
-          uiOutput("skill_list")
+          uiOutput("skill_list"),
+          actionButton("generate_survey", "Generate Student Survey", class = 'btn-primary')
         ),
-        mainPanel(width = 9,
+        mainPanel(width = 7,
           div(style = "text-align: center;", 
               textOutput("confirmation")
           )
@@ -106,7 +127,10 @@ project_setup_ui <- fluidPage(
   )
 )
 
+# ------------------------------------------------------------------------------
 # define the dynamic UI output
+# ------------------------------------------------------------------------------
+
 ui <- fluidPage(
   tags$head(
     tags$script(HTML("$(document).ready(function(){
@@ -121,6 +145,28 @@ ui <- fluidPage(
       });
     });"))
   ),
-  uiOutput("main_ui")
+  uiOutput("main_ui"),
+  uiOutput("survey_ui")
 )
 
+# ------------------------------------------------------------------------------
+# survey interface UI
+# ------------------------------------------------------------------------------
+
+survey_ui <- fluidPage(
+  titlePanel("Student Survey"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      uiOutput("student_inputs")
+      # generate name & ID fields according to sub-group size
+    ),
+    mainPanel(
+      h3("Rank your project and sub-group preference (1st is most preferred)"),
+      uiOutput("project_ranking"),
+      uiOutput("subgroup_selection"),
+      actionButton("submit_survey", "Submit Survey", class = "btn-primary"),
+      textOutput("survey_confirmation")
+    )
+  )
+)
