@@ -1,2 +1,1 @@
-"Name","StudentID","ProjectRanking","SkillRatings"
-"JX","e1234567","1, 2, 3","4, 2, 3"
+list(Name = c("stu1", "stu2", "stu3", "stu4"), StudentID = c("e123456", "e123457", "e123458", "e123450")),"a | b | c | d","backend | frontend","1: 4 | 2: 3 | 3: 5 | 4: 2"
