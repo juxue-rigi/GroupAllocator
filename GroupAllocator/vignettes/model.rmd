@@ -11,10 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-install.packages("ompr", repos = "https://cloud.r-project.org")
-install.packages("ompr.roi", repos = "https://cloud.r-project.org")
-install.packages("ROI.plugin.glpk", repos = "https://cloud.r-project.org")
-
+library(dplyr)
+library(tidyr)
 library(slam)               # test that slam loads
 library(ompr)               # or library(ompr, lib.loc=.libPaths()[1])
 library(ompr.roi)
@@ -22,114 +20,361 @@ library(ROI.plugin.glpk)
 ```
 
 # define sample data inputs
-the data will later be obtained from student survey from frontend software.
-the data should be converted to input format to model 
-below is manual hardcoding for streamlining thoughts only.
 ```{r data}
+"
+Read in:
+1. a set of groups or individuals:  G = {1, 2, …, n_groups}.
+2. a set of topics: T = {1, 2, …, m_topics}.
+3. each topic has 2 sub-teams, or more generally a set s = 1,....,s
+4. each group's size, group_size[g].
+5. the ideal number of students per sub-team, b (e.g. 4), with an optional shortfall variable y[t,s]
+6. ach group g has a preference for each (t,s) combination, denoted pref[g,t,s].
+6. a penalty constant p we apply if a project is underfilled by 1 student.
+"
+```
 
-# input 1: students
-n <- 100
-students <- 1:n # n students
+```{r read sample data}
+# read in sample data 'anonymized_data_2120.csv'
+df <- read.csv("/Users/juxue/Desktop/fyp/GroupAllocator/data/anonymized_data_2120.csv",
+               stringsAsFactors = FALSE, na.strings = c("","NA"))
+df
+```
+```{r get group sizes}
+# get group sizes
 
-# input 2: self-formed groups
-groups <- list(
-    c(e123456,e654321), # group 1 has 2 members
-    c(,,,),
-    c(e264921) # individual
-    ...
-)
+# Identify the columns that contain group IDs
+group_id_cols <- c("Group.members_1", "Group.members_2",
+                   "Group.members_3", "Group.members_4",
+                   "Individual_1")
 
-group_sizes <- sapply(groups, length) # extract size of groups
+# remove rows where group_size == 0
+df <- df[group_size != 0, ]
+# Count how many non-NA cells each row has across these columns
+df$group_size <- rowSums(!is.na(df[group_id_cols]))
+group_size <- df$group_size
+group_size
+```
 
-# input 3: projects
-projects <- c("P1", "P2", "P3", "P4", "P5") # list of projects available
-teams_per_project <- 2 # set minimum threshold for teams per project
-b <- 6   # ideal team size
+```{r get topics}
+topic_cols <- c("Q11.1_1", "Q11.1_2", "Q11.1_3", "Q11.1_4")
+subteam_cols <- c("Q11.2_1", "Q11.2_2", "Q11.2_3", "Q11.2_4")
 
-# input 4: group preferences over project topics
-# higher is better
+df_topics <- df %>%
+  mutate(row_id = row_number()) %>%
+  select(row_id, all_of(topic_cols)) %>%
+  pivot_longer(
+    cols      = topic_cols,
+    names_to  = "topic_col",
+    values_to = "topic_value"
+  ) %>%
+  mutate( # Extract the numeric index k from "Q11.1_k" e.g. "Q11.1_1" => "1"
+    topic_rank = as.integer(sub("^Q11\\.1_(\\d+)$", "\\1", topic_col))
+  )
+df_topics
+```
 
-rank <- matrix(
-    c(1,2,3,4,5), # group 1 prefers P1 over P2 over P3 over P3 over P5 
-    c(2,4,1,5,3), # group 1 prefers P3 over P1 over P5 over P2 over P4
-    ...
-)
-nrow = length(groups), byrow = TRUE
-rownames(rank) <- paste0("GROUP", 1:length(groups)) # row name being group number
-colnames(rank) <- projects # row number being projects
+```{r get subteams}
+## Similarly, pivot subteams
+subteam_cols <- c("Q11.2_1", "Q11.2_2", "Q11.2_3", "Q11.2_4")
+df_subteams <- df %>%
+  mutate(row_id = row_number()) %>% 
+  select(row_id, all_of(subteam_cols)) %>%
+  pivot_longer(
+    cols = subteam_cols,
+    names_to  = "subteam_col",
+    values_to = "subteam_value"
+  ) %>%
+  # Extract the numeric index k from "Q11.2_k"
+  mutate(
+    subteam_rank = as.integer(sub("^Q11\\.2_(\\d+)$", "\\1", subteam_col))
+  )
 
-# input 5: student skill scores
-# the software will get students to choose their score for each skill e.g. from 1-5
-skills <- c("python", "data", "statistics", "language", "visual") # list of skills considered
-skills_scores <- c(3, 4, 2, 5, 3)  # one per student
-skill_threshold <- 0.2  # at least 20% of each team must have skills in Statistics
-
-# group skill scores (sum within each group)
-group_skills <- sapply(groups, function(g) sum(skills[g]))
+head(df_subteams)
+```
 
 
-# input 6: group preferences
-preferences <- list(
-    c("online", "twice a week"), 
-    c("face-to-face", "once a week"),
-    ...
-) 
-# later task: need to do binary encoding e.g.  1 = online, 0 = face-to-face
+```{r preference scores}
 
+"
+Give “No Preference” Zero
+
+Interpretation: The respondent simply doesn’t care; picking that subteam neither increases nor decreases satisfaction.
+Implementation: By using 0, you’re allowing the solver to treat “no preference” as neutral. If the solver can’t satisfy a strongly preferred subteam, it might fall back on “no preference.”
+"
+
+df_pref <- df_topics %>%
+  inner_join(df_subteams,
+             by = c("row_id" = "row_id",
+                    "topic_rank" = "subteam_rank")) %>%
+  # Optionally rename that rank to a single column:
+  rename(pref_rank = topic_rank) %>%
+  select(row_id, pref_rank, topic_value, subteam_value)
+
+# assign preference score based on rank
+df_pref <- df_pref %>%
+  mutate(
+    preference_score = case_when(
+      pref_rank == 1 ~ 100,
+      pref_rank == 2 ~ 80,
+      pref_rank == 3 ~ 60,
+      pref_rank == 4 ~ 40,
+      TRUE           ~ 0  # fallback
+    )
+  ) %>%
+  mutate(
+    preference_score = ifelse(
+      subteam_value == "No preference", 
+      0,                  # assign 0 if subteam_value == "No preference"
+      preference_score    # otherwise keep the existing score
+    )
+  )
+
+
+df_pref
+```
+
+
+```{r}
+# define:
+n_groups  <- nrow(df)       # each row is a group/survey response
+                            # (when n = 1 the group is an individual)
+# 1) Unique topics (non‐NA):
+topics <- df_pref %>%
+  filter(!is.na(topic_value)) %>%
+  distinct(topic_value) %>%
+  pull(topic_value)
+
+# 2) Unique subteams (non‐NA):
+valid_subteams <- df_pref %>%
+  filter(subteam_value != "No preference") %>%
+  distinct(subteam_value) %>%
+  pull(subteam_value)
+
+topics
+valid_subteams
+```
+
+```{r handling no_preference}
+"
+Now, for any row where subteam_value is “No preference,” we want to create one row per valid subteam. For rows with a valid subteam already, we leave them unchanged.
+We can do this by replacing “No preference” with an NA, then—in a rowwise step—replacing that NA with a list of all valid subteams and unnesting the list.
+"
+df_pref_expanded <- df_pref %>%
+  # Replace "No preference" with NA to mark the rows needing expansion
+  mutate(subteam_value = if_else(subteam_value == "No preference",
+                                 NA_character_,
+                                 subteam_value)) %>%
+  rowwise() %>%
+  # For each row, if subteam_value is NA, replace it with the full valid_subteams list;
+  # otherwise keep it as a single-element list.
+  mutate(subteam_value = list(if (is.na(subteam_value)) valid_subteams else subteam_value)) %>%
+  ungroup() %>%
+  unnest(subteam_value)
+
+df_pref_expanded <- df_pref_expanded %>%
+  mutate(preference_score = if_else(pref_rank == 1, 100,
+                             if_else(pref_rank == 2, 80,
+                             if_else(pref_rank == 3, 60,
+                                     40))))
+
+df_pref_expanded
+
+"
+a respondent who originally had (topic_value = FIFA video highlights, subteam_value = No preference) now appears twice: once with subteam_value = Modeling team and once with subteam_value = Front-end team, both with the same topic and preference score.
+"
+```
+
+```{r}
+# Initialize an empty array
+pref_array <- array(0, 
+                    dim = c(n_groups, length(topics), length(valid_subteams)),
+                    dimnames = list(
+                      group    = 1:n_groups,
+                      topic    = topics,
+                      subteam  = valid_subteams
+                    ))
+
+for (g in 1:n_groups) {
+  row_data <- df[g, ]
+}
+
+pref_array
+dim(pref_array)
+# [1] 50  3  2
+# meaning pref_array[g, t, s] has g in 1..50, t in 1..3, s in 1..2
+print(n_groups)
+print(n_topics)
+print(n_subteams)
+
+```
+
+```{r data inputs}
+n_groups  <- nrow(df)
+m_topics <- length(topics)
+s_subteams <- length(valid_subteams)
+n_groups
+m_topics
+s_subteams
 ```
 
 # the model
-Integer Programming (IP) model implementation using the lpSolve package
 ```{r model}
+"
+under each topic, we should have x teams, each with n_subteams sub-teams (e.g. frontend, modelling).
+we allocate our self-formed groups to subteams under teams by maximizing preference score.
 
-num_groups <- length(groups)
-num_projects <- length(projects)
+e.g. 
+c_team = 8
+b_subteam = 4
+min_topic_teams <- 2
+we should allocate students to groups of 8 with 4 under each sub-team, with a minimum 2 teams under each project
+"
+n_topics <- length(topics) # total number of topics available
+n_subteams <- length(valid_subteams) # types of valid subteams per team. if n_subteams = 2, means there are 2 subteams under each team
+x_topic_teams <- 2 # each topic should have at least 2 teams
+n_groups  <- nrow(df) # each row of input dataset is one self-formed group
 
-# total teams across all projects
-num_teams <- num_projects * teams_per_project
 
-# initialize a LP model (without constraints) 
-lp_model <- make.lp(0, num_groups * num_teams)  
+# define:
+c_team <- 8 # each team should have a size of c
+b_subteam <- 4 # each subteam should have an ideal size of b
+p_penalty <- 50 
+minCapacity <- c_team - 2
 
-# set objective function
-'''
-maximizing preference (project ranking) satisfaction score
+# create model
+model <- MIPModel() %>%
+  
+  # 1) Decision variable A[g,t,j,s]
+  add_variable(A[g, t, j, s],
+               g = 1:n_groups,
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               type = "binary") %>%
+  
+  # 2) Slack variable for shortfall in each sub-team
+  # This can be integer if group sizes are integers.
+  add_variable(slack[t, j, s],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               lb = 0,
+               type = "integer") %>%
+  
+  # 3) Objective: maximize sum of preferences - penalty * total slack
+  set_objective(
+    sum_expr(pref_array[g, t, s] * A[g, t, j, s],
+             g = 1:n_groups,
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams)
+    -
+    p_penalty * sum_expr(slack[t, j, s],
+                         t = 1:n_topics,
+                         j = 1:x_topic_teams,
+                         s = 1:n_subteams),
+    sense = "max"
+  ) %>%
+  
+  # 4a) Each group assigned exactly once
+  add_constraint(
+    sum_expr(A[g, t, j, s],
+             t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams) == 1,
+    g = 1:n_groups
+  ) %>%
+  
+  # 4b) Each sub-team must have at least 1 group => sub-team is not "skipped"
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups) >= 1,
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  ) %>%
+  
+  # 4c) Sub-team capacity with slack
+  # sum of group sizes assigned + slack = b_subteam
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  )
 
-obj function and model initialization: not sure, will look further
-'''
-obj_coefficients <- as.vector(t(rank)) # flatten ranking matrix
-set.objfn(lp_model, obj_coefficients)
+"
+to avoid creating “tiny” second teams:
+introduce a binary “team active” variable Z[t,j] for each team slot (t,j). 
+If Z[t,j]=1, the solver is allowed to assign groups to that team; 
+if Z[t,j]=0, that team remains unused. 
+Then enforce a minimum capacity so that if Z[t,j]=1, 
+the team must have at least some minimum number of students (or seats). 
+This way, the solver will only “open” that second team if it can fill it enough to be worthwhile.
+"
+
 ```
 
-```{r constraint 1}
-# constraint 1: each group is assigned to exactly one team
+```{r solve_model}
+result <- solve_model(
+  model,
+  with_ROI(
+    solver = "glpk",
+    verbose = TRUE,
+  )
+)
+result
+```
 
-'''
-iterate over each group g
-for each group g, the sum of its assignment values across all teams is exactly 1
+```{r check}
+sum_of_all_students <- sum(group_size)
+max_capacity <- n_topics * n_subteams * b_subteams * x_topic_teams
+sum_of_all_students
+max_capacity
+large_groups <- which(group_size > b_subteam)  # or group_size > c_team
+large_groups
+```
 
-A_gtj is the binary decision variable indicating whether group g is assigned to team j in project t.
+```{r}
+cat("Solver status:", result$status, "\n")
+cat("Objective value:", result$objective_value, "\n")
+```
 
-The sum of all binary decision variables corresponding to group g must be exactly 1
-e.g. suppose
-there are 5 projects
-we have 3 teams for each project
-so we have a total of 15 teams
-suppose group 1 can be assigned to teams, we set:
-A_1_1_1 + A_1_1_2 + ...... + A_1_1_15 = 1
-to sure that group 1 gets exactly one team
-'''
+```{r extract_result}
+solution_A <- get_solution(result, A[g, t, j, s])
+assigned <- subset(solution_A, value > 0.5) # keep only assignments where A == 1
+assigned
+```
 
-for (g in 1:num_groups) { # for each group g
+```{r}
+assigned$topic_name   <- topics[assigned$t]
+assigned$subteam_name <- valid_subteams[assigned$s]
+assigned$project_team <- paste0(assigned$topic_name, "_team", assigned$j)
 
-    # create a zero vector of size (num_groups x num_teams)
-    A_gtj <- rep(0, num_groups * num_teams)
 
-    # update the vector where only the decision variables corresponding to group g are set to 1, while ohter values remain 0
-    A_gtj[((g-1) * num_teams + 1): (g * num_teams)] <- 1
+final_output_list <- lapply(seq_len(nrow(assigned)), function(k) {
+  # Extract the assigned row
+  g_val <- assigned$g[k]
+  project_team_val <- assigned$project_team[k]
+  subteam_val      <- assigned$subteam_name[k]
+  
+  # Get all student IDs in that group (row g_val)
+  row_ids <- df[g_val, group_id_cols, drop = FALSE]
+  # Filter out NA
+  student_ids <- unlist(row_ids[!is.na(row_ids)])
+  
+  # Build a small data frame: one row per student
+  if (length(student_ids) == 0) {
+    return(NULL)  # no valid IDs
+  }
+  data.frame(
+    student_id    = student_ids,
+    project_team  = project_team_val,
+    subteam       = subteam_val,
+    stringsAsFactors = FALSE
+  )
+})
 
-    #ensure each group is assigned exactly once
-    add.constraint(lp_model, A_gtj, '=', 1) 
-}
+# Combine them all
+final_output <- do.call(rbind, final_output_list)
+final_output <- final_output[order(final_output$project_team), ]
+final_output
+```
 
+
+```{r export}
+write.csv(final_output, "final_output.csv", row.names = FALSE)
 ```

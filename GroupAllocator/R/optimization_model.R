@@ -4,38 +4,36 @@ library(ompr)
 library(ompr.roi)
 library(ROI.plugin.glpk)
 
-
 # Read in Data 
 "
 Read in:
 1. a set of groups or individuals:  G = {1, 2, …, n_groups}.
 2. a set of topics: T = {1, 2, …, m_topics}.
-3. a preference score matrix pref[g, t], where a higher score means group g prefers topic t more
+3. each topic has 2 sub-teams, or more generally a set s = 1,....,s
 4. each group's size, group_size[g].
-5. the ideal number of students per project group, b.
+5. the ideal number of students per sub-team, b (e.g. 4), with an optional shortfall variable y[t,s]
+6. ach group g has a preference for each (t,s) combination, denoted pref[g,t,s].
 6. a penalty constant p we apply if a project is underfilled by 1 student.
 "
 
 # Sample Data
-n_groups <- 5
+n_groups <- 6
 m_topics <- 3
-b <- 6
-p <- 50
+s_subteams <- 2
+b_subteams <- 4
+p_penalty <- 50
 
 # each group has a certain number of members
-group_size <- c(3,2,1,2,3) # size of each group g
-
-# each group has a preference score for each topic, higher = more preferred
-pref <- matrix(
-  c(80, 60, 20,
-    70, 90, 10,
-    50, 20, 80,
-    30, 40, 70,
-    90, 10, 50),
-  nrow = n_groups, ncol = m_topics, byrow = TRUE
-)
+# size of each group 
+# number of students per survey response
+group_size <- c(2, 1, 3, 2, 4, 1)
 
 
+# define an array for preferences: pref[g, t, s].
+set.seed(123)
+pref_array <- array(sample(10:100, n_groups * m_topics * s_subteams, replace = TRUE),
+                    dim = c(n_groups, m_topics, s_subteams))
+pref_array
 
 # Create the MIP model
 model <- MIPModel() %>%
