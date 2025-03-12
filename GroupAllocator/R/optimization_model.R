@@ -1,86 +1,152 @@
-# loading packages
-library(slam)
-library(ompr)
-library(ompr.roi)
-library(ROI.plugin.glpk)
+#' Run the Optimization
+#'
+#' Reads user inputs and survey data from import_data.R, builds and solves the MIP model,
+#' and processes the solution into final assignments.
+#'
+#' @return A list with elements: solver_result (the raw optimization result) and
+#'         assignments (a data frame of student assignments).
+#' @export
+run_optimization <- function() {
 
-# Read in Data 
-"
-Read in:
-1. a set of groups or individuals:  G = {1, 2, …, n_groups}.
-2. a set of topics: T = {1, 2, …, m_topics}.
-3. each topic has 2 sub-teams, or more generally a set s = 1,....,s
-4. each group's size, group_size[g].
-5. the ideal number of students per sub-team, b (e.g. 4), with an optional shortfall variable y[t,s]
-6. ach group g has a preference for each (t,s) combination, denoted pref[g,t,s].
-6. a penalty constant p we apply if a project is underfilled by 1 student.
-"
+  library(dplyr)
+  library(tidyr)
+  library(slam)        
+  library(ompr)  
+  library(ompr.roi)
+  library(ROI.plugin.glpk)
 
-# Sample Data
-n_groups <- 6
-m_topics <- 3
-s_subteams <- 2
-b_subteams <- 4
-p_penalty <- 50
-
-# each group has a certain number of members
-# size of each group 
-# number of students per survey response
-group_size <- c(2, 1, 3, 2, 4, 1)
-
-
-# define an array for preferences: pref[g, t, s].
-set.seed(123)
-pref_array <- array(sample(10:100, n_groups * m_topics * s_subteams, replace = TRUE),
-                    dim = c(n_groups, m_topics, s_subteams))
-pref_array
-
-# Create the MIP model
-model <- MIPModel() %>%
-
-  # Decision Variables:
-  # A[g,t] = 1 if group g is assigned to topic t, else 0
-  add_variable(A[g,t], g = 1:n_groups, t = 1:m_topics, type = "binary") %>%
-
-  # y[t]= 1 if topic t is underfilled by 1 student, else 0
-  add_variable(y[t], t = 1:m_topics, type = 'binary') %>%
-
-
-
-  # Objective Function:
-  # Maximizing sum of preference minus penalty
-  set_objective(
-    sum_expr(pref[g,t] * A[g,t], g = 1: n_groups, t = 1:m_topics) 
-    - 
-    p * sum_expr(y[t], t = 1:m_topics),
-    sense = 'max'
-  ) %>%
-
-  # Constraints:
-  # 1) each group is assigned exactly once:
-  add_constraint(
-    sum_expr(A[g,t], t = 1:m_topics) == 1,
-    g = 1:n_groups
-  ) %>%
-
-  # 2) enforce that the sum of group sizes for a topic = b - y[t]
-  # i.e. either b or (b-1) if y[t]=1
-  add_constraint(
-    sum_expr(group_size[g] * A[g,t], g = 1:n_groups) == (b - y[t]),
-    t = 1:m_topics
+  # 1) Read all data
+  data_list <- read_data("shiny_app/survey_data.csv")
+  
+  # 2) Extract parameters from the returned list
+  c_team         <- data_list$c_team
+  b_subteam      <- data_list$b_subteam
+  x_topic_teams  <- data_list$x_topic_teams
+  n_topics       <- data_list$n_topics
+  n_subteams     <- data_list$n_subteams
+  n_groups       <- data_list$n_groups
+  group_size     <- data_list$group_size
+  topics         <- data_list$topics
+  valid_subteams <- data_list$valid_subteams
+  pref_array     <- data_list$pref_array
+  survey_df      <- data_list$survey_data
+  
+  # 3) constants for the model
+  p_penalty   <- 2
+  minCapacity <- c_team - 2
+  
+  # 4) the MIP model
+  model <- MIPModel() %>%
+    add_variable(A[g, t, j, s],
+                 g = 1:n_groups,
+                 t = 1:n_topics,
+                 j = 1:x_topic_teams,
+                 s = 1:n_subteams,
+                 type = "binary") %>%
+    add_variable(slack[t, j, s],
+                 t = 1:n_topics,
+                 j = 1:x_topic_teams,
+                 s = 1:n_subteams,
+                 lb = 0,
+                 type = "integer") %>%
+    add_variable(Z[t, j],
+                 t = 1:n_topics,
+                 j = 1:x_topic_teams,
+                 type = "binary") %>%
+    set_objective(
+      sum_expr(pref_array[g, t, s] * A[g, t, j, s],
+               g = 1:n_groups, t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams) -
+      p_penalty * sum_expr(slack[t, j, s],
+                           g = 1:n_groups, t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams),
+      sense = "max"
+    ) %>%
+    # (1) Each group is assigned exactly once
+    add_constraint(
+      sum_expr(A[g, t, j, s],
+               t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams) == 1,
+      g = 1:n_groups
+    ) %>%
+    # (2) If team (t,j) is formed, then at least one group is assigned
+    add_constraint(
+      sum_expr(A[g, t, j, s], g = 1:n_groups) >= Z[t, j],
+      t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+    ) %>%
+    # (3) Sub-team capacity (plus slack equals b_subteam)
+    add_constraint(
+      sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
+      t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+    ) %>%
+    # (4) Tie assignments to team activation
+    add_constraint(
+      sum_expr(A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) <= n_groups * Z[t, j],
+      t = 1:n_topics, j = 1:x_topic_teams
+    ) %>%
+    # (5) Minimum team capacity if a team is active
+    add_constraint(
+      sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) >= minCapacity * Z[t, j],
+      t = 1:n_topics, j = 1:x_topic_teams
+    ) %>%
+    # (6) At least one team per topic
+    add_constraint(
+      sum_expr(Z[t, j], j = 1:x_topic_teams) >= 1,
+      t = 1:n_topics
+    ) %>%
+    # (7) Minimum threshold for each sub-team
+    add_constraint(
+      sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) >= (b_subteam - 1) * Z[t, j],
+      t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+    )
+  
+  # 5) Solve the model (using GLPK as an example)
+  result <- solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
+  
+  # 6) Process the solution:
+  # 6a) Extract the solution for decision variable A[g,t,j,s]
+  solution_A <- get_solution(result, A[g, t, j, s])
+  
+  # 6b) Filter to keep only assignments (A==1)
+  assigned <- subset(solution_A, value > 0.5)
+  
+  # 6c) Map indices to labels using topics and valid_subteams
+  assigned$topic_name   <- topics[assigned$t]
+  assigned$subteam_name <- valid_subteams[assigned$s]
+  assigned$project_team <- paste0(assigned$topic_name, "_team", assigned$j)
+  
+  # 6d) Retrieve student IDs for each group from survey data.
+  # Identify the columns in survey_df that start with "Student_ID"
+  group_id_cols <- grep("^Student_ID", names(survey_df), value = TRUE)
+  
+  final_output_list <- lapply(seq_len(nrow(assigned)), function(k) {
+    g_val <- assigned$g[k]
+    project_team_val <- assigned$project_team[k]
+    subteam_val      <- assigned$subteam_name[k]
+    
+    # Get the row corresponding to group g_val and extract student IDs
+    row_ids <- survey_df[g_val, group_id_cols, drop = FALSE]
+    student_ids <- unlist(row_ids[!is.na(row_ids)])
+    if (length(student_ids) == 0) return(NULL)
+    
+    data.frame(
+      student_id   = student_ids,
+      project_team = project_team_val,
+      subteam      = subteam_val,
+      stringsAsFactors = FALSE
+    )
+  })
+  
+  final_output <- do.call(rbind, final_output_list)
+  if (!is.null(final_output)) {
+    final_output <- final_output[order(final_output$project_team), ]
+  }
+  
+  list(
+    solver_result = result,
+    assignments   = final_output
   )
+}
 
-# solve the model using GLPK
-result <- solve_model(
-  model,
-  with_ROI(solver = "glpk", verbose = TRUE)
-)
-
-cat("Solver status:", result$status, "\n")
-
-
-# extract assignment decisions:
-solution_A <- get_solution(result, A[g,t])
-assigned <- solution_A[solution_A$value > 0.5, ]
-solution_y <- get_solution(result, y[t])
-
+# Example of calling the function:
+# res <- run_optimization()
+# res$solver_result  # To inspect the raw solver output
+# head(res$assignments)  # To inspect the final assignments
+# write.csv(res$assignments, "final_assignments.csv", row.names = FALSE)

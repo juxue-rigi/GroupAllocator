@@ -1,25 +1,39 @@
-library(shiny)
+source("../../R/optimization_model.R")
+source("../../R/import_data.R")
 
 server <- function(input, output, session) {
-
+  
+  # Track which page is displayed
   current_page <- reactiveVal("login")
+  
+  # Store username for display
   user_name <- reactiveVal("")
-  projects <- reactiveVal(list())
-  skills <- reactiveVal(list())
-  subgroups <- reactiveVal(list())
-
-  ### UI Switching Logic
+  
+  # Reactive values for data
+  params <- reactiveValues(
+    c_team = NULL,
+    b_subteam = NULL,
+    x_topic_teams = NULL,
+    survey_uploaded = FALSE,     # Track if user has uploaded CSV
+    final_assignments = NULL     # Store final optimization result
+  )
+  
+  # Render dynamic UI based on current page
   output$main_ui <- renderUI({
-    if (current_page() == "login") {
-      login_ui
-    } else if (current_page() == "project_setup") {
-      project_setup_ui
-    } else if (current_page() == "survey") {
-      survey_ui
-    }
+    switch(
+      current_page(),
+      "login"         = login_ui,
+      "project_setup" = project_setup_ui,
+      "csv_upload"    = csv_upload_ui,
+      "result"        = result_ui
+    )
   })
-
-  ### Navigation Logic
+  
+  # --------------------------------------------------------------------------
+  # Page Navigation
+  # --------------------------------------------------------------------------
+  
+  # 1) Login -> Project Setup
   observeEvent(input$go, {
     if (input$username != "" && input$course != "") {
       user_name(input$username)
@@ -33,266 +47,111 @@ server <- function(input, output, session) {
       ))
     }
   })
-
-  observeEvent(input$logout, {
+  
+  # 2) "Back" from Project Setup -> Login
+  observeEvent(input$back_to_login, {
     current_page("login")
   })
-
-  ### projects
-  observeEvent(input$add_project, {
-    req(input$project_name)
-    projects(c(projects(), input$project_name))
-    updateTextInput(session, "project_name", value = "")
+  
+  # 3) "Back" from CSV Upload -> Project Setup
+  observeEvent(input$back_to_setup, {
+    current_page("project_setup")
   })
-
-  output$project_list <- renderUI({
-    lapply(seq_along(projects()), function(i) {
-      fluidRow(
-        column(8, strong(projects()[[i]])),
-        column(4, actionButton(paste0("remove_project_", i), "Remove",
-                               class = "btn-danger btn-sm",
-                               style = "float: right;"))
-      )
-    })
+  
+  # 4) "Back" from Result -> CSV Upload
+  observeEvent(input$back_to_upload, {
+    current_page("csv_upload")
   })
-
-  observe({
-    lapply(seq_along(projects()), function(i) {
-      observeEvent(input[[paste0("remove_project_", i)]], {
-        projects(projects()[-i])
-      }, ignoreInit = TRUE)
-    })
-  })
-
-  ### Sub-group Function
-  observeEvent(input$add_subgroup, {
-    req(input$subgroup_name)
-    subgroups(c(subgroups(), input$subgroup_name))
-    updateTextInput(session, "subgroup_name", value = "")
-  })
-
-  output$subgroup_list <- renderUI({
-    lapply(seq_along(subgroups()), function(i) {
-      fluidRow(
-        column(8, strong(subgroups()[[i]])),
-        column(4, actionButton(paste0("remove_subgroup_", i), "Remove",
-                               class = "btn-danger btn-sm",
-                               style = "float: right;"))
-      )
-    })
-  })
-
-  observe({
-    lapply(seq_along(subgroups()), function(i) {
-      observeEvent(input[[paste0("remove_subgroup_", i)]], {
-        subgroups(subgroups()[-i])
-      }, ignoreInit = TRUE)
-    })
-  })
-
-  ### Skills
-  observeEvent(input$add_skill, {
-    req(input$skill_name)
-    current_skills <- skills()
-    skills(c(current_skills, input$skill_name))
-    updateTextInput(session, "skill_name", value = "")
-  })
-
-  output$skill_list <- renderUI({
-    lapply(seq_along(skills()), function(i) {
-      fluidRow(
-        column(8, strong(skills()[[i]])),
-        column(4, actionButton(paste0("remove_skill_", i), "Remove",
-                               class = "btn-danger btn-sm",
-                               style = "float: right;"))
-      )
-    })
-  })
-
-  observe({
-    lapply(seq_along(skills()), function(i) {
-      observeEvent(input[[paste0("remove_skill_", i)]], {
-        current_skills <- skills()
-        skills(skills()[-i])
-      }, ignoreInit = TRUE)
-    })
-  })
-
-  observeEvent(input$generate_survey, {
-    current_page("survey")
-  })
-
-  ### Student Survey UI
-  output$project_ranking <- renderUI({
-    req(projects())
-    proj_list <- projects()
-    # Only show rank choices if there are projects
-    if (length(proj_list) > 0) {
-      lapply(1:min(4, length(proj_list)), function(i) {
-        selectInput(paste0("rank_project_", i),
-                    paste0(i, "st choice"),
-                    choices = proj_list,
-                    selected = NULL)
-      })
-    }
-  })
-
-  output$subgroup_selection <- renderUI({
-    req(subgroups())
-    sg_list <- subgroups()
-    # Only show subgroup choices if there are subgroups
-    if (length(sg_list) > 0) {
-      lapply(1:min(4, length(sg_list)), function(i) {
-        selectInput(paste0("subgroup_choice_", i),
-                    paste0(i, "st choice - Sub-group function"),
-                    choices = sg_list,
-                    selected = NULL)
-      })
-    }
-  })
-
-  output$student_inputs <- renderUI({
-    req(input$sub_group_size)  # Ensure sub-group size is set
-    num_students <- as.numeric(input$sub_group_size) # Convert input to numeric
-    student_fields <- lapply(1:num_students, function(i) {
-      tagList(
-        textInput(paste0("student_name_", i),
-                  paste("Student", i, "Name:")),
-        textInput(paste0("student_id_", i),
-                  paste("Student", i, "ID:"))
-      )
-    })
-    do.call(tagList, student_fields)
-  })
-
-  # Skills rating UI
-  output$skill_ratings <- renderUI({
-    req(skills())
-    skill_list <- skills()
-
-    if (length(skill_list) == 0) {
-      return(p("No skills have been defined for this project."))
-    }
-    lapply(seq_along(skill_list), function(i) {
-      skill_name <- skill_list[[i]]
-      # A container for each skill's label + radio buttons
-      div(
-        style = "margin-bottom: 30px;",
-        tags$strong(skill_name),
-        # Put radio buttons & labels in a separate div
-        div(
-          style = "position: relative; 
-                   display: inline-block; 
-                   margin-left: 10px;",
-          radioButtons(
-            inputId = paste0("skill_rating_", i),
-            label = NULL,
-            choices = 1:5,
-            inline = TRUE
-          ),
-          tags$div(
-            style = "
-              position: absolute;
-              top: 2.0em;  /* adjust if needed */
-              width: 100%;
-              display: flex;
-              justify-content: space-between;",
-            tags$span("Beginner"),
-            tags$span("Expert")
-          )
-        )
-      )
-    })
-  })
-
-  ### Save Student Survey Data
-  observeEvent(input$submit_survey, {
-    num_students <- as.numeric(input$sub_group_size)
-    student_data <- lapply(1:num_students, function(i) {
-      name <- input[[paste0("student_name_", i)]]
-      id <- input[[paste0("student_id_", i)]]
-      if (!is.null(name) && name != "" && !is.null(id) && id != "") {
-        data.frame(Name = name, StudentID = id)
-      } else {
-        NULL # Ignore empty fields
-      }
-    })
-    student_data <- do.call(rbind, student_data) #combine filled student entries
-    if (is.null(student_data) || nrow(student_data) == 0) {
-      showModal(modalDialog(title = "Error",
-                            "At least one student must be entered.",
-                            easyClose = TRUE))
-      return()
-    }
-
-    # Get project rankings
-    project_ranks <- character(0)
-    if (length(projects()) > 0) {
-      project_ranks <- sapply(1:min(4, length(projects())),
-                              function(i) {
-                                if (!is.null(input[[paste0("rank_project_", i)]])) {
-                                  input[[paste0("rank_project_", i)]]
-                                } else {
-                                  NA
-                                }
-                              })
-    }
-
-    # Get subgroup choices
-    subgroup_choices <- character(0)
-    if (length(subgroups()) > 0) {
-      subgroup_choices <- sapply(1:min(4, length(subgroups())),
-                                 function(i) {
-                                   if (!is.null(input[[paste0("subgroup_choice_", i)]])) {
-                                     input[[paste0("subgroup_choice_", i)]]
-                                   } else {
-                                     NA
-                                   }
-                                 })
-    }
-
-    # Get skill ratings
-    skill_ratings <- list()
-    if (length(skills()) > 0) {
-      skill_list <- skills()
-      skill_ratings <- sapply(seq_along(skill_list), function(i) {
-        skill_name <- skill_list[[i]]
-        rating <- input[[paste0("skill_rating_", i)]]
-        if (is.null(rating)) {
-          paste0(skill_name, ": Not rated")
-        } else {
-          paste0(skill_name, ": ", rating)
-        }
-      })
-    }
-
-    # Create response data frame
-    response_data <- data.frame(
-      StudentData = I(list(student_data)), # store list of student names & IDs
-      ProjectRanking = paste(project_ranks, collapse = " | "),
-      SubgroupChoices = paste(subgroup_choices, collapse = " | "),
-      SkillRatings = paste(skill_ratings, collapse = " | ")
+  
+  # 5) Next Step -> CSV Upload
+  observeEvent(input$next_step, {
+    # Save numeric inputs to user_inputs.csv
+    # so read_project_data() can read them
+    data_to_save <- data.frame(
+      c_team        = input$c_team,
+      b_subteam     = input$b_subteam,
+      x_topic_teams = input$x_topic_teams
     )
-    # Write to file
-    write.table(response_data, file = "student_survey_responses.csv",
-                append = TRUE,
-                sep = ",",
-                row.names = FALSE,
-                col.names = !file.exists("student_survey_responses.csv"))
-    output$survey_confirmation <- renderText("Survey submitted successfully!")
+    write.table(
+      data_to_save,
+      file = "shiny_app/user_inputs.csv",
+      sep = ",",
+      row.names = FALSE,
+      col.names = !file.exists("shiny_app/user_inputs.csv"),
+      append = FALSE
+    )
+    
+    current_page("csv_upload")
   })
-
-  ### text display
+  
+  # 6) Open Microsoft Form in new tab
+  observeEvent(input$go_survey, {
+    # Optionally also save numeric inputs here if needed
+    form_url <- "https://forms.office.com/your-form-url"
+    js <- sprintf("window.open('%s', '_blank');", form_url)
+    session$sendCustomMessage(type = "jsCode", js)
+  })
+  
+  # --------------------------------------------------------------------------
+  # CSV Upload Logic
+  # --------------------------------------------------------------------------
+  
+  # Upload CSV -> Save to "shiny_app/survey_data.csv"
+  observeEvent(input$upload_csv, {
+    req(input$survey_csv)
+    
+    # Copy the uploaded file to a known location
+    dest_path <- file.path("shiny_app", "survey_data.csv")
+    file.copy(input$survey_csv$datapath, dest_path, overwrite = TRUE)
+    
+    params$survey_uploaded <- TRUE
+    
+    showModal(modalDialog(
+      title = "Upload Successful",
+      paste("CSV has been saved to", dest_path),
+      easyClose = TRUE
+    ))
+  })
+  
+  # --------------------------------------------------------------------------
+  # Generate Allocation -> Run Optimization -> Go to Result Page
+  # --------------------------------------------------------------------------
+  observeEvent(input$generate_allocation, {
+    req(params$survey_uploaded)  # Ensure user uploaded CSV
+    
+    # Now run_optimization(), which calls read_data() with the path
+    # read_data() -> read_project_data() + process_survey_data()
+    # We'll pass the path "shiny_app/survey_data.csv"
+    res <- run_optimization()  # If run_optimization() is hardcoded to read "path/to/uploaded_student_survey.csv"
+    
+    # Alternatively, if run_optimization() calls read_data("shiny_app/survey_data.csv"), 
+    # you might need to update run_optimization() to point to the correct file, e.g.:
+    # res <- run_optimization("shiny_app/survey_data.csv")
+    # Then inside run_optimization() do read_data(survey_csv_path).
+    
+    params$final_assignments <- res$assignments
+    
+    current_page("result")
+  })
+  
+  # --------------------------------------------------------------------------
+  # Display the Allocation Table on the Result Page
+  # --------------------------------------------------------------------------
+  output$allocation_table <- renderTable({
+    req(params$final_assignments)
+    params$final_assignments
+  })
+  
+  # --------------------------------------------------------------------------
+  # Display text
+  # --------------------------------------------------------------------------
   output$welcome_message <- renderText({
     req(user_name(), input$course)
-    paste("Hello",
-          user_name(),
-          ", Welcome to the Project Set-up Page for Course", input$course)
+    paste("Hello", user_name(), ", Welcome to the Project Set-up Page for Course", input$course)
   })
-
+  
   output$profile_name <- renderText({
     req(user_name())
-    paste("Hello,",
-          user_name())
+    paste("Hello,", user_name())
   })
 }

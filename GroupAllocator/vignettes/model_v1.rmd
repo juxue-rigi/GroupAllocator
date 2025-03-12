@@ -1,0 +1,159 @@
+```{r model v1}
+n_topics <- length(topics) # total number of topics available
+n_subteams <- length(valid_subteams) # types of valid subteams per team. if n_subteams = 2, means there are 2 subteams under each team
+x_topic_teams <- 2 # each topic should have at least 2 teams
+n_groups  <- nrow(df) # each row of input dataset is one self-formed group
+
+
+# define:
+c_team <- 8 # each team should have a size of c
+b_subteam <- 4 # each subteam should have an ideal size of b
+p_penalty <- 50 
+minCapacity <- c_team - 2
+
+# create model
+model <- MIPModel() %>%
+  
+  # 1) Decision variable A[g,t,j,s]
+  add_variable(A[g, t, j, s],
+               g = 1:n_groups,
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               type = "binary") %>%
+  
+  # 2) Slack variable for shortfall in each sub-team
+  # This can be integer if group sizes are integers.
+  add_variable(slack[t, j, s],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               lb = 0,
+               type = "integer") %>%
+  # 3) Team activation variable: Z[t,j] = 1 if team j under topic t is formed, 0 otherwise.
+  add_variable(Z[t, j],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               type = "binary") %>%
+  
+  # Objective: maximize sum of preferences - penalty * total slack
+  set_objective(
+    sum_expr(pref_array[g, t, s] * A[g, t, j, s],
+             g = 1:n_groups,
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams)
+    -
+    p_penalty * sum_expr(slack[t, j, s],
+                         t = 1:n_topics,
+                         j = 1:x_topic_teams,
+                         s = 1:n_subteams),
+    sense = "max"
+  ) %>%
+  
+  # 1) Each group is assigned exactly once
+  add_constraint(
+    sum_expr(A[g, t, j, s],
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams) == 1,
+    g = 1:n_groups
+  ) %>%
+  
+  # 2) Each sub-team must have at least 1 group if the team is formed
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups) >= Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  ) %>%
+  
+  # 3) Sub-team capacity with slack: for each sub-team, total assigned group sizes plus slack equals b_subteam
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  ) %>%
+  
+  # 4) Tie assignments to team activation:
+  #    If Z[t,j]=0 then no groups can be assigned to any sub-team of team (t,j)
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) <= n_groups * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 5) Minimum team capacity: if team (t,j) is formed (Z[t,j]=1), it must have at least minCapacity members.
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) >= minCapacity * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 6) At least one team per topic
+  add_constraint(
+    sum_expr(Z[t, j], j = 1:x_topic_teams) >= 1,
+    t = 1:n_topics
+  )
+```
+
+given the above model, we compare the model outcome and past allocation results on '2120 data'.
+results are as follows:
+
+student_id	project_team_model	subteam_model	project_team_past	subteam_past
+student_9	Airline delay_team1	Modeling team	05-cust	m
+student_30	Airline delay_team1	Modeling team	05-cust	m
+student_39	Airline delay_team1	Modeling team	05-cust	m
+student_26	Airline delay_team1	Modeling team	05-cust	m
+student_41	Airline delay_team1	Front-end team	04-cust	f
+student_45	Airline delay_team1	Front-end team	04-cust	f
+student_28	Airline delay_team2	Modeling team	08-traffic	f
+student_17	Airline delay_team2	Modeling team	07-storm	m
+student_48	Airline delay_team2	Modeling team	01-air	m
+student_54	Airline delay_team2	Modeling team	01-air	m
+student_48	Airline delay_team2	Front-end team	01-air	m
+student_54	Airline delay_team2	Front-end team	01-air	m
+student_8	Customer analytics_team1	Modeling team	03-cust	m
+student_11	Customer analytics_team1	Modeling team	03-cust	m
+student_12	Customer analytics_team1	Modeling team	03-cust	m
+student_7	Customer analytics_team1	Modeling team	03-cust	m
+student_34	Customer analytics_team1	Front-end team	06-fifa	f
+student_60	Customer analytics_team1	Front-end team	06-fifa	f
+student_62	Customer analytics_team1	Front-end team	06-fifa	f
+student_56	Customer analytics_team1	Front-end team	06-fifa	f
+student_61	Customer analytics_team2	Modeling team	02-air	m
+student_52	Customer analytics_team2	Modeling team	02-air	m
+student_18	Customer analytics_team2	Modeling team	NA	NA
+student_27	Customer analytics_team2	Front-end team	08-traffic	f
+student_36	Customer analytics_team2	Front-end team	02-air	m
+student_29	Customer analytics_team2	Front-end team	02-air	f
+student_15	Customer analytics_team2	Front-end team	04-cust	m
+student_53	FIFA video highlights_team1	Modeling team	01-air	m
+student_32	FIFA video highlights_team1	Modeling team	01-air	m
+student_2	FIFA video highlights_team1	Front-end team	NA	NA
+student_1	FIFA video highlights_team1	Front-end team	NA	NA
+student_3	FIFA video highlights_team1	Front-end team	NA	NA
+student_4	FIFA video highlights_team1	Front-end team	NA	NA
+student_24	Heavy traffic_team1	Modeling team	08-traffic	m
+student_12	Heavy traffic_team1	Modeling team	03-cust	m
+student_11	Heavy traffic_team1	Modeling team	03-cust	m
+student_8	Heavy traffic_team1	Modeling team	03-cust	m
+student_20	Heavy traffic_team1	Front-end team	02-air	m
+student_61	Heavy traffic_team1	Front-end team	02-air	m
+student_52	Heavy traffic_team1	Front-end team	02-air	m
+student_67	Heavy traffic_team2	Modeling team	NA	NA
+student_14	Heavy traffic_team2	Modeling team	04-cust	m
+student_66	Heavy traffic_team2	Modeling team	04-cust	m
+student_59	Heavy traffic_team2	Modeling team	04-cust	m
+student_46	Heavy traffic_team2	Front-end team	06-fifa	m
+student_38	Heavy traffic_team2	Front-end team	06-fifa	m
+student_25	Heavy traffic_team2	Front-end team	06-fifa	m
+student_22	Heavy traffic_team2	Front-end team	06-fifa	m
+student_35	Storm cell tracking_team2	Modeling team	03-cust	f
+student_40	Storm cell tracking_team2	Modeling team	03-cust	f
+student_31	Storm cell tracking_team2	Modeling team	03-cust	f
+student_15	Storm cell tracking_team2	Modeling team	04-cust	m
+student_51	Storm cell tracking_team2	Front-end team	08-traffic	f
+student_57	Storm cell tracking_team2	Front-end team	07-storm	m
+
+
+Analysis on possible differences bewteen model results and manual allocations:
+- Our current model uses a pref_array[g,t,s] to compute a numeric score and then maximizes the sum of these scores over all assignments.
+The optimization may sometimes assign a group to a second-choice subteam if that leads to a higher overall score under the given capacity constraints.
+For instance, row 1’s groups (student_2, student_3, student_4) were all assigned to “FIFA video highlights_team2” with “Modeling team” even though their top preference might have been “customer analytics’s front-end team.” This can happen when the overall model solution yields a higher total score, even if for that individual group the top preference isn’t honored.
+

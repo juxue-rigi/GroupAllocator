@@ -173,9 +173,9 @@ df_pref_expanded <- df_pref %>%
 
 df_pref_expanded <- df_pref_expanded %>%
   mutate(preference_score = if_else(pref_rank == 1, 100,
-                             if_else(pref_rank == 2, 80,
-                             if_else(pref_rank == 3, 60,
-                                     40))))
+                             if_else(pref_rank == 2, 60,
+                             if_else(pref_rank == 3, 40,
+                                     20))))
 
 df_pref_expanded
 
@@ -231,14 +231,14 @@ we should allocate students to groups of 8 with 4 under each sub-team, with a mi
 "
 n_topics <- length(topics) # total number of topics available
 n_subteams <- length(valid_subteams) # types of valid subteams per team. if n_subteams = 2, means there are 2 subteams under each team
-x_topic_teams <- 2 # each topic should have at least 2 teams
+x_topic_teams <- 3 # each topic should have at least 2 teams
 n_groups  <- nrow(df) # each row of input dataset is one self-formed group
 
 
 # define:
-c_team <- 8 # each team should have a size of c
-b_subteam <- 4 # each subteam should have an ideal size of b
-p_penalty <- 50 
+c_team <- 10 # each team should have a size of c
+b_subteam <- 5 # each subteam should have an ideal size of b
+p_penalty <- 2
 minCapacity <- c_team - 2
 
 # create model
@@ -260,8 +260,14 @@ model <- MIPModel() %>%
                s = 1:n_subteams,
                lb = 0,
                type = "integer") %>%
+
+  # 3) Team activation variable: Z[t,j] = 1 if team j under topic t is formed, 0 otherwise.
+  add_variable(Z[t, j],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               type = "binary") %>%
   
-  # 3) Objective: maximize sum of preferences - penalty * total slack
+  # Objective: maximize sum of preferences - penalty * total slack
   set_objective(
     sum_expr(pref_array[g, t, s] * A[g, t, j, s],
              g = 1:n_groups,
@@ -276,26 +282,51 @@ model <- MIPModel() %>%
     sense = "max"
   ) %>%
   
-  # 4a) Each group assigned exactly once
+  # 1) Each group is assigned exactly once
   add_constraint(
     sum_expr(A[g, t, j, s],
-             t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams) == 1,
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams) == 1,
     g = 1:n_groups
   ) %>%
   
-  # 4b) Each sub-team must have at least 1 group => sub-team is not "skipped"
+  # 2) Each sub-team must have at least 1 group if the team is formed
   add_constraint(
-    sum_expr(A[g, t, j, s], g = 1:n_groups) >= 1,
+    sum_expr(A[g, t, j, s], g = 1:n_groups) >= Z[t,j],
     t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
   ) %>%
   
-  # 4c) Sub-team capacity with slack
-  # sum of group sizes assigned + slack = b_subteam
+  # 3) Sub-team capacity with slack: for each sub-team, total assigned group sizes plus slack equals b_subteam
   add_constraint(
     sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
     t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
-  )
+  ) %>%
+  
+  # 4) Tie assignments to team activation:
+  #    If Z[t,j]=0 then no groups can be assigned to any sub-team of team (t,j)
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) <= n_groups * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 5) Minimum team capacity: if team (t,j) is formed (Z[t,j]=1), it must have at least minCapacity members.
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) >= minCapacity * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 6) At least one team per topic
+  add_constraint(
+    sum_expr(Z[t, j], j = 1:x_topic_teams) >= 1,
+    t = 1:n_topics
+  ) %>%
 
+  # 7) Minimum threshold for each sub-team: if team (t,j) is active, then each sub-team must have at least (b_subteam - 1) members.
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) >= (b_subteam - 1) * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  )
 "
 to avoid creating “tiny” second teams:
 introduce a binary “team active” variable Z[t,j] for each team slot (t,j). 
@@ -340,6 +371,8 @@ assigned
 ```
 
 ```{r}
+solution_A <- get_solution(result, A[g, t, j, s])
+assigned <- subset(solution_A, value > 0.5) # keep only assignments where A == 1
 assigned$topic_name   <- topics[assigned$t]
 assigned$subteam_name <- valid_subteams[assigned$s]
 assigned$project_team <- paste0(assigned$topic_name, "_team", assigned$j)
@@ -377,4 +410,19 @@ final_output
 
 ```{r export}
 write.csv(final_output, "final_output.csv", row.names = FALSE)
+```
+
+
+```{r compare model results with past results}
+past_result <- read.csv("/Users/juxue/Desktop/fyp/GroupAllocator/data/anonymized_data_2120_result.csv",
+               stringsAsFactors = FALSE, na.strings = c("","NA"))
+#past_result
+model_result <- read.csv("/Users/juxue/Desktop/fyp/GroupAllocator/final_output.csv",
+               stringsAsFactors = FALSE, na.strings = c("","NA"))
+#model_result
+
+merged_df <- model_result %>%
+  left_join(past_result, by = c("student_id" = "User.ID"))
+#merged_df
+write.csv(merged_df, "final_output_comparison.csv", row.names = FALSE)
 ```

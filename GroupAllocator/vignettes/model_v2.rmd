@@ -1,0 +1,100 @@
+```{r model}
+n_topics <- length(topics) # total number of topics available
+n_subteams <- length(valid_subteams) # types of valid subteams per team. if n_subteams = 2, means there are 2 subteams under each team
+x_topic_teams <- 3 # each topic should have max 3 teams
+n_groups  <- nrow(df) # each row of input dataset is one self-formed group
+
+
+# define:
+c_team <- 8 # each team should have a size of c
+b_subteam <- 4 # each subteam should have an ideal size of b
+p_penalty <- 2
+minCapacity <- c_team - 2
+
+# create model
+model <- MIPModel() %>%
+  
+  # 1) Decision variable A[g,t,j,s]
+  add_variable(A[g, t, j, s],
+               g = 1:n_groups,
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               type = "binary") %>%
+  
+  # 2) Slack variable for shortfall in each sub-team
+  # This can be integer if group sizes are integers.
+  add_variable(slack[t, j, s],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               lb = 0,
+               type = "integer") %>%
+
+  # 3) Team activation variable: Z[t,j] = 1 if team j under topic t is formed, 0 otherwise.
+  add_variable(Z[t, j],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               type = "binary") %>%
+  
+  # Objective: maximize sum of preferences - penalty * total slack
+  set_objective(
+    sum_expr(pref_array[g, t, s] * A[g, t, j, s],
+             g = 1:n_groups,
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams)
+    -
+    p_penalty * sum_expr(slack[t, j, s],
+                         t = 1:n_topics,
+                         j = 1:x_topic_teams,
+                         s = 1:n_subteams),
+    sense = "max"
+  ) %>%
+  
+  # 1) Each group is assigned exactly once
+  add_constraint(
+    sum_expr(A[g, t, j, s],
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams) == 1,
+    g = 1:n_groups
+  ) %>%
+  
+  # 2) Each sub-team must have at least 1 group if the team is formed
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups) >= Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  ) %>%
+  
+  # 3) Sub-team capacity with slack: for each sub-team, total assigned group sizes plus slack equals b_subteam
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  ) %>%
+  
+  # 4) Tie assignments to team activation:
+  #    If Z[t,j]=0 then no groups can be assigned to any sub-team of team (t,j)
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) <= n_groups * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 5) Minimum team capacity: if team (t,j) is formed (Z[t,j]=1), it must have at least minCapacity members.
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) >= minCapacity * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 6) At least one team per topic
+  add_constraint(
+    sum_expr(Z[t, j], j = 1:x_topic_teams) >= 1,
+    t = 1:n_topics
+  ) %>%
+
+  # 7) Minimum threshold for each sub-team: if team (t,j) is active, then each sub-team must have at least (b_subteam - 1) members.
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) >= (b_subteam - 1) * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  )
+```
