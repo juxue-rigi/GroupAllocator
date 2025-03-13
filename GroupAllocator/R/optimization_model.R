@@ -1,6 +1,7 @@
 #' Run the Optimization
 #'
-#' Reads user inputs and survey data, builds and solves the MIP model,
+#' Reads user inputs and survey data,
+#' builds and solves the MIP model,
 #' and processes the solution into final assignments.
 #'
 #' @param student_data_path Path to the CSV file containing student survey data.
@@ -40,12 +41,13 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
   pref_array     <- data_list$pref_array
   survey_data    <- data_list$survey_data
 
-  # 3) constants for the model
+  # 3) Constants for the model
   p_penalty   <- 2
   minCapacity <- c_team - 2
   
-  # 4) the MIP model
+  # 4) The MIP model
   model <- MIPModel() %>%
+    # Define variables
     add_variable(A[g, t, j, s],
                  g = 1:n_groups,
                  t = 1:n_topics,
@@ -62,44 +64,54 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
                  t = 1:n_topics,
                  j = 1:x_topic_teams,
                  type = "binary") %>%
+    
+    # Objective function
     set_objective(
       sum_expr(pref_array[g, t, s] * A[g, t, j, s],
                g = 1:n_groups, t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams) -
-      p_penalty * sum_expr(slack[t, j, s],
-                           t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams),
+        p_penalty * sum_expr(slack[t, j, s],
+                             t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams),
       sense = "max"
     ) %>%
+    
+    # Constraints
     # (1) Each group is assigned exactly once
     add_constraint(
       sum_expr(A[g, t, j, s],
                t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams) == 1,
       g = 1:n_groups
     ) %>%
+    
     # (2) If team (t,j) is formed, then at least one group is assigned
     add_constraint(
       sum_expr(A[g, t, j, s], g = 1:n_groups) >= Z[t, j],
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     ) %>%
+    
     # (3) Sub-team capacity (plus slack equals b_subteam)
     add_constraint(
       sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     ) %>%
+    
     # (4) Tie assignments to team activation
     add_constraint(
       sum_expr(A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) <= n_groups * Z[t, j],
       t = 1:n_topics, j = 1:x_topic_teams
     ) %>%
+    
     # (5) Minimum team capacity if a team is active
     add_constraint(
       sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) >= minCapacity * Z[t, j],
       t = 1:n_topics, j = 1:x_topic_teams
     ) %>%
+    
     # (6) At least one team per topic
     add_constraint(
       sum_expr(Z[t, j], j = 1:x_topic_teams) >= 1,
       t = 1:n_topics
     ) %>%
+    
     # (7) Minimum threshold for each sub-team
     add_constraint(
       sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) >= (b_subteam - 1) * Z[t, j],
@@ -135,12 +147,13 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
   
   final_output_list <- lapply(seq_len(nrow(assigned)), function(k) {
     # Extract the assigned row
-    g_val <- assigned$g[k]
+    g_val           <- assigned$g[k]
     project_team_val <- assigned$project_team[k]
     subteam_val      <- assigned$subteam_name[k]
     
     # Get all student IDs in that group (row g_val)
     row_ids <- survey_data[g_val, group_id_cols, drop = FALSE]
+    
     # Filter out NA
     student_ids <- unlist(row_ids[!is.na(row_ids)])
     
@@ -148,6 +161,7 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
     if (length(student_ids) == 0) {
       return(NULL)  # no valid IDs
     }
+    
     data.frame(
       student_id    = student_ids,
       project_team  = project_team_val,
@@ -158,8 +172,10 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
   
   # Combine them all
   final_output <- do.call(rbind, final_output_list)
+  
   # Remove duplicates in case they occur
   final_output <- unique(final_output)
+  
   # Sort by project team
   final_output <- final_output[order(final_output$project_team), ]
   

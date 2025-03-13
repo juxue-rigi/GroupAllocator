@@ -1,0 +1,9 @@
+linters: linters_with_defaults(
+line_length_linter = NULL,
+trailing_whitespace_linter = NULL,
+object_name_linter = NULL,
+indentation_linter = NULL,
+commented_code_linter = NULL,
+object_usage_linter = NULL  # This will suppress the "no visible global function definition" and "no visible binding for global variable" warnings
+)
+
