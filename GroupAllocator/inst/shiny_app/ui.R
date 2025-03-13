@@ -67,10 +67,9 @@ project_setup_ui <- fluidPage(
   div(class = "project-container",
       titlePanel(textOutput("welcome_message")),
       
-      # Profile section
+      # Profile section - use a default icon instead of relying on profile.png
       div(class = "profile-section",
-          tags$img(src = "profile.png", height = "40px", width = "40px",
-                   style = "border-radius: 50%; cursor: pointer;", id = "profile_pic"),
+          tags$i(class = "fa fa-user-circle", style = "font-size: 30px; cursor: pointer;", id = "profile_pic"),
           textOutput("profile_name")
       ),
       
@@ -79,7 +78,7 @@ project_setup_ui <- fluidPage(
           fluidRow(
             column(width = 4, offset = 4,
                    numericInput("c_team", "What is the size of each topic group?",
-                                value = 8, min = 1, max = 5),
+                                value = 8, min = 1, max = 20),
                    numericInput("b_subteam", "What is the size of the sub-team under each topic groups?",
                                 value = 4, min = 1, max = 10),
                    numericInput("x_topic_teams", "For each topic, set a threshold for the number of teams under each topic:",
@@ -122,13 +121,19 @@ csv_upload_ui <- fluidPage(
   div(class = "upload-container",
       div(class = "instruction-section",
           h3("Instructions"),
-          p("Please upload the CSV file containing the student survey responses. The file should include the required columns (e.g., student ID, group assignment, preferences, etc.). Ensure that the CSV is formatted correctly. Once uploaded, the data will be processed and converted into the inputs needed for the optimization model.")
+          p("Please upload the CSV file containing the student survey responses. The file should include the required columns:"),
+          tags$ul(
+            tags$li("Student_ID columns for each student in a group"),
+            tags$li("Topic columns for topic preferences"),
+            tags$li("Subteam columns for subteam preferences")
+          ),
+          p("Ensure that the CSV is formatted correctly. Once uploaded, the data will be processed and converted into the inputs needed for the optimization model.")
       ),
       fileInput("survey_csv", "Choose CSV File", accept = ".csv"),
       actionButton("upload_csv", "Upload CSV", class = "btn-primary"),
       div(class = "button-group",
           br(),
-          actionButton("generate_allocation", "Generate Allocation", class = "btn-success"),
+          actionButton("generate_allocation", "Generate Allocation", class = "btn-success", disabled = TRUE),
           br(), br(),
           actionButton("back_to_setup", "Back", class = "btn-secondary")
       )
@@ -142,18 +147,27 @@ result_ui <- fluidPage(
   titlePanel("Allocation Results"),
   fluidRow(
     column(width = 12,
-      tableOutput("allocation_table")
+           h3("Student Assignments"),
+           p("The table below shows the final assignments of students to project teams and subteams."),
+           div(style = "overflow-x: auto;", # Make table scrollable horizontally
+               tableOutput("allocation_table")
+           ),
+           br(),
+           downloadButton("download_csv", "Download Assignments as CSV"),
+           br(), br(),
+           actionButton("back_to_upload", "Back", class = "btn-secondary")
     )
-  ),
-  br(),
-  actionButton("back_to_upload", "Back", class = "btn-secondary")
+  )
 )
 
 # ------------------------------------------------------------------------------
 # Define the dynamic UI output
 # ------------------------------------------------------------------------------
 ui <- fluidPage(
+  # Include required libraries
+  shinyjs::useShinyjs(),
   tags$head(
+    tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"),
     tags$script(HTML("
       Shiny.addCustomMessageHandler('jsCode', function(code) {
         eval(code);

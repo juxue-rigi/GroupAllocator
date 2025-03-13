@@ -55,9 +55,9 @@ group_size <- df$group_size
 group_size
 ```
 
+
 ```{r get topics}
 topic_cols <- c("Q11.1_1", "Q11.1_2", "Q11.1_3", "Q11.1_4")
-subteam_cols <- c("Q11.2_1", "Q11.2_2", "Q11.2_3", "Q11.2_4")
 
 df_topics <- df %>%
   mutate(row_id = row_number()) %>%

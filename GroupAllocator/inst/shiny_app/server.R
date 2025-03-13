@@ -15,7 +15,8 @@ server <- function(input, output, session) {
     b_subteam = NULL,
     x_topic_teams = NULL,
     survey_uploaded = FALSE,     # Track if user has uploaded CSV
-    final_assignments = NULL     # Store final optimization result
+    final_assignments = NULL,    # Store final optimization result
+    error_message = NULL         # Store any error messages
   )
   
   # Render dynamic UI based on current page
@@ -27,6 +28,15 @@ server <- function(input, output, session) {
       "csv_upload"    = csv_upload_ui,
       "result"        = result_ui
     )
+  })
+
+  output$download_csv <- downloadHandler(
+  filename = function() {
+    paste("student_assignments_", Sys.Date(), ".csv", sep = "")
+  },
+  content = function(file) {
+    req(params$final_assignments)
+    write.csv(params$final_assignments, file, row.names = FALSE)
   })
   
   # --------------------------------------------------------------------------
@@ -65,6 +75,17 @@ server <- function(input, output, session) {
   
   # 5) Next Step -> CSV Upload
   observeEvent(input$next_step, {
+    # Validate inputs first
+    if (is.na(input$c_team) || is.na(input$b_subteam) || is.na(input$x_topic_teams)) {
+      showModal(modalDialog(
+        title = "Error",
+        "Please enter valid values for all fields.",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      return()
+    }
+    
     # Save numeric inputs to user_inputs.csv
     # so read_project_data() can read them
     data_to_save <- data.frame(
@@ -72,14 +93,31 @@ server <- function(input, output, session) {
       b_subteam     = input$b_subteam,
       x_topic_teams = input$x_topic_teams
     )
-    write.table(
-      data_to_save,
-      file = "shiny_app/user_inputs.csv",
-      sep = ",",
-      row.names = FALSE,
-      col.names = !file.exists("shiny_app/user_inputs.csv"),
-      append = FALSE
-    )
+    
+    # Store values in reactive values for later use
+    params$c_team <- input$c_team
+    params$b_subteam <- input$b_subteam
+    params$x_topic_teams <- input$x_topic_teams
+    
+    # Save to CSV
+    tryCatch({
+      write.table(
+        data_to_save,
+        file = "user_inputs.csv",
+        sep = ",",
+        row.names = FALSE,
+        col.names = FALSE,  # Changed to FALSE as expected by read_project_data
+        append = FALSE
+      )
+    }, error = function(e) {
+      showModal(modalDialog(
+        title = "Error",
+        paste("Failed to save settings:", e$message),
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      return()
+    })
     
     current_page("csv_upload")
   })
@@ -96,21 +134,29 @@ server <- function(input, output, session) {
   # CSV Upload Logic
   # --------------------------------------------------------------------------
   
-  # Upload CSV -> Save to "shiny_app/survey_data.csv"
+  # Upload CSV -> Save to "survey_data.csv"
   observeEvent(input$upload_csv, {
     req(input$survey_csv)
     
     # Copy the uploaded file to a known location
-    dest_path <- file.path("shiny_app", "survey_data.csv")
-    file.copy(input$survey_csv$datapath, dest_path, overwrite = TRUE)
+    dest_path <- "survey_data.csv"
     
-    params$survey_uploaded <- TRUE
-    
-    showModal(modalDialog(
-      title = "Upload Successful",
-      paste("CSV has been saved to", dest_path),
-      easyClose = TRUE
-    ))
+    tryCatch({
+      file.copy(input$survey_csv$datapath, dest_path, overwrite = TRUE)
+      params$survey_uploaded <- TRUE
+      
+      showModal(modalDialog(
+        title = "Upload Successful",
+        paste("CSV has been saved to", dest_path),
+        easyClose = TRUE
+      ))
+    }, error = function(e) {
+      showModal(modalDialog(
+        title = "Upload Error",
+        paste("Failed to save the CSV file:", e$message),
+        easyClose = TRUE
+      ))
+    })
   })
   
   # --------------------------------------------------------------------------
@@ -119,20 +165,32 @@ server <- function(input, output, session) {
   observeEvent(input$generate_allocation, {
     req(params$survey_uploaded)  # Ensure user uploaded CSV
     
-    # Now run_optimization(), which calls read_data() with the path
-    # read_data() -> read_project_data() + process_survey_data()
-    # We'll pass the path "shiny_app/survey_data.csv"
-    res <- run_optimization()  # If run_optimization() is hardcoded to read "path/to/uploaded_student_survey.csv"
-    
-    # Alternatively, if run_optimization() calls read_data("shiny_app/survey_data.csv"), 
-    # you might need to update run_optimization() to point to the correct file, e.g.:
-    # res <- run_optimization("shiny_app/survey_data.csv")
-    # Then inside run_optimization() do read_data(survey_csv_path).
-    
-    params$final_assignments <- res$assignments
-    
-    current_page("result")
+    # Show progress indicator
+    withProgress(message = "Running optimization...", {
+      
+      # Run the optimization with error handling
+      tryCatch({
+        # Pass the path to the uploaded CSV file
+        res <- run_optimization("survey_data.csv")
+        
+        # Store the results
+        params$final_assignments <- res$assignments
+        params$error_message <- NULL
+        
+        # Go to results page
+        current_page("result")
+      }, error = function(e) {
+        params$error_message <- e$message
+        showModal(modalDialog(
+          title = "Optimization Error",
+          paste("Failed to generate allocation:", e$message),
+          easyClose = TRUE
+        ))
+      })
+    })
   })
+
+  
   
   # --------------------------------------------------------------------------
   # Display the Allocation Table on the Result Page
@@ -140,6 +198,11 @@ server <- function(input, output, session) {
   output$allocation_table <- renderTable({
     req(params$final_assignments)
     params$final_assignments
+  })
+  
+  # Enable/disable the Generate Allocation button based on whether CSV is uploaded
+  observe({
+    shinyjs::toggleState("generate_allocation", condition = params$survey_uploaded)
   })
   
   # --------------------------------------------------------------------------

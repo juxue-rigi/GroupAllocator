@@ -1,0 +1,509 @@
+---
+title: "Model Formulation"
+author: "Ju Xue"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(slam)               # test that slam loads
+library(ompr)               # or library(ompr, lib.loc=.libPaths()[1])
+library(ompr.roi)
+library(ROI.plugin.glpk)
+```
+
+# define sample data inputs
+```{r data}
+"
+Read in:
+1. a set of groups or individuals:  G = {1, 2, …, n_groups}.
+2. a set of topics: T = {1, 2, …, m_topics}.
+3. each topic has 2 sub-teams, or more generally a set s = 1,....,s
+4. each group's size, group_size[g].
+5. the ideal number of students per sub-team, b (e.g. 4), with an optional shortfall variable y[t,s]
+6. ach group g has a preference for each (t,s) combination, denoted pref[g,t,s].
+6. a penalty constant p we apply if a project is underfilled by 1 student.
+"
+```
+
+```{r read sample data}
+# read in sample data 'anonymized_data_2120.csv'
+df <- read.csv("/Users/juxue/Desktop/fyp/GroupAllocator/data/for_anonymising/2120/sample_data_1.csv",
+               stringsAsFactors = FALSE, na.strings = c("","NA"))
+df
+```
+```{r get group sizes}
+# get group sizes
+
+group_id_cols <- grep("Student_ID", names(df), value = TRUE)
+
+if (length(group_id_cols) > 0) {
+  cat("Found Student ID columns:", paste(group_id_cols, collapse = ", "), "\n")
+  
+  # Calculate group sizes
+  df$group_size <- rowSums(!is.na(df[group_id_cols]))
+  
+  # Display group sizes
+  cat("Group sizes:\n")
+  print(df$group_size)
+  
+  # Filter out rows with zero group size
+  valid_rows <- df$group_size > 0
+  df <- df[valid_rows, ]
+  group_size <- df$group_size
+  
+  # Count the number of groups
+  n_groups <- nrow(df)
+  cat("Number of valid groups:", n_groups, "\n")
+} else {
+  cat("No Student_ID columns found.\n")
+}
+```
+
+```{r get topics}
+# Try to find topic columns
+topic_cols <- grep("Topic", names(df), value = TRUE)
+
+if (length(topic_cols) > 0) {
+  cat("Found Topic columns:", paste(topic_cols, collapse = ", "), "\n")
+  
+  # Create a dataframe with topic preferences
+  df_topics <- df %>%
+    mutate(row_id = row_number()) %>%
+    select(row_id, all_of(topic_cols)) %>%
+    pivot_longer(
+      cols = topic_cols,
+      names_to = "topic_col",
+      values_to = "topic_value"
+    ) %>%
+    filter(!is.na(topic_value) & topic_value != "")
+  
+  # Extract rank from column names
+  df_topics <- df_topics %>%
+    mutate(
+      topic_rank = case_when(
+        grepl("First", topic_col) ~ 1,
+        grepl("Second", topic_col) ~ 2,
+        grepl("Third", topic_col) ~ 3,
+        grepl("Fourth", topic_col) ~ 4,
+        TRUE ~ NA_integer_
+      )
+    )
+  
+  # Display the result
+  cat("First few rows of topic preferences:\n")
+  print(df_topics)
+  
+  # Get unique topics
+  topics <- df_topics %>%
+    filter(!is.na(topic_value)) %>%
+    distinct(topic_value) %>%
+    pull(topic_value)
+  
+  cat("Unique topics found:", paste(topics, collapse = ", "), "\n")
+} else {
+  cat("No Topic columns found.\n")
+}
+```
+
+```{r get subteams}
+# Try to find subteam columns
+subteam_cols <- grep("Subteam", names(df), value = TRUE)
+
+if (length(subteam_cols) > 0) {
+  cat("Found Subteam columns:", paste(subteam_cols, collapse = ", "), "\n")
+  
+  # Create a dataframe with subteam preferences
+  df_subteams <- df %>%
+    mutate(row_id = row_number()) %>%
+    select(row_id, all_of(subteam_cols)) %>%
+    pivot_longer(
+      cols = subteam_cols,
+      names_to = "subteam_col",
+      values_to = "subteam_value"
+    ) %>%
+    filter(!is.na(subteam_value) & subteam_value != "")
+  
+  # Extract rank from column names
+  df_subteams <- df_subteams %>%
+    mutate(
+      subteam_rank = case_when(
+        grepl("First", subteam_col) ~ 1,
+        grepl("Second", subteam_col) ~ 2,
+        grepl("Third", subteam_col) ~ 3,
+        grepl("Fourth", subteam_col) ~ 4,
+        TRUE ~ NA_integer_
+      )
+    )
+  
+  # Display the result
+  cat("First few rows of subteam preferences:\n")
+  print(df_subteams)
+  
+  # Get valid subteams
+  valid_subteams <- df_subteams %>%
+    filter(tolower(subteam_value) != "no preference") %>%
+    distinct(subteam_value) %>%
+    pull(subteam_value)
+  
+  cat("Valid subteams found:", paste(valid_subteams, collapse = ", "), "\n")
+} else {
+  cat("No Subteam columns found.\n")
+}
+```
+
+
+```{r preference scores}
+if (exists("df_topics") && exists("df_subteams")) {
+  df_pref <- df_topics %>%
+    inner_join(df_subteams, by = c("row_id", "topic_rank" = "subteam_rank")) %>%
+    rename(pref_rank = topic_rank) %>%
+    select(row_id, pref_rank, topic_value, subteam_value)
+  
+  # Display the result
+  cat("First few rows of preference dataframe:\n")
+  print(head(df_pref))
+  
+  # Count preferences
+  cat("Number of preference combinations:", nrow(df_pref), "\n")
+} else {
+  cat("Cannot create preference dataframe - topics or subteams not available.\n")
+}
+
+
+
+if (exists("df_pref")) {
+  # Assign preference scores based on rank
+  df_pref <- df_pref %>%
+    mutate(
+      no_pref = tolower(subteam_value) == "no preference",
+      # Initial scoring: valid selections get a score based on rank
+      preference_score = case_when(
+        no_pref ~ 0,
+        pref_rank == 1 ~ 100,
+        pref_rank == 2 ~ 80,
+        pref_rank == 3 ~ 60,
+        pref_rank == 4 ~ 40,
+        TRUE ~ 0
+      )
+    )
+  
+  # Display the result
+  cat("Preference scores assigned:\n")
+  print(head(df_pref))
+}
+```
+
+
+```{r}
+# define:
+n_groups  <- nrow(df)       # each row is a group/survey response
+                            # (when n = 1 the group is an individual)
+n_groups
+# 1) Unique topics (non‐NA):
+topics <- df_pref %>%
+  filter(!is.na(topic_value)) %>%
+  distinct(topic_value) %>%
+  pull(topic_value)
+
+# 2) Unique subteams (non‐NA):
+valid_subteams <- df_pref %>%
+  filter(subteam_value != "No preference") %>%
+  distinct(subteam_value) %>%
+  pull(subteam_value)
+
+topics
+valid_subteams
+```
+
+```{r handling no_preference}
+if (exists("df_pref") && exists("valid_subteams")) {
+  # Expand "No preference" entries to one entry per valid subteam
+  df_pref_expanded <- df_pref %>%
+    mutate(subteam_value = if_else(no_pref, NA_character_, subteam_value)) %>%
+    rowwise() %>%
+    mutate(subteam_value = list(if (is.na(subteam_value)) valid_subteams else subteam_value)) %>%
+    ungroup() %>%
+    unnest(subteam_value) %>%
+    # For rows originally with "No preference", use a different scoring scale
+    mutate(
+      preference_score = if_else(no_pref,
+                             case_when(
+                               pref_rank == 1 ~ 100,
+                               pref_rank == 2 ~ 60,
+                               pref_rank == 3 ~ 40,
+                               TRUE ~ 20
+                             ),
+                             preference_score)
+    ) %>%
+    select(-no_pref)
+  
+  # Display the result
+  cat("First few rows after expanding 'No preference':\n")
+  print(head(df_pref_expanded))
+  
+  # Compare original and expanded counts
+  cat("Original preference rows:", nrow(df_pref), "\n")
+  cat("Expanded preference rows:", nrow(df_pref_expanded), "\n")
+}
+```
+
+```{r}
+if (exists("df_pref_expanded") && exists("topics") && exists("valid_subteams") && exists("n_groups")) {
+  # Build the pref_array: a 3D array of dimensions (groups x topics x subteams)
+  pref_array <- array(0,
+                    dim = c(n_groups, length(topics), length(valid_subteams)),
+                    dimnames = list(
+                      group = 1:n_groups,
+                      topic = topics,
+                      subteam = valid_subteams
+                    ))
+  
+  # Populate the pref_array using the scores from df_pref_expanded
+  for (i in seq_len(nrow(df_pref_expanded))) {
+    g <- df_pref_expanded$row_id[i]
+    t_val <- df_pref_expanded$topic_value[i]
+    s_val <- df_pref_expanded$subteam_value[i]
+    score <- df_pref_expanded$preference_score[i]
+    
+    # Find index of topic and subteam in our arrays
+    t <- match(t_val, topics)
+    s <- match(s_val, valid_subteams)
+    
+    # Only assign if all indices are valid
+    if (!is.na(g) && !is.na(t) && !is.na(s) && g <= n_groups) {
+      pref_array[g, t, s] <- score
+      
+      # Log a few assignments
+      if (i <= 5) {
+        cat("Assigning score", score, "to group", g, 
+            ", topic '", t_val, "' (", t, "), subteam '", s_val, "' (", s, ")\n")
+      }
+    }
+  }
+  
+  # Report total score as a sanity check
+  cat("Total preference score in array:", sum(pref_array), "\n")
+  
+  # Show array dimensions
+  cat("Preference array dimensions:", paste(dim(pref_array), collapse = " x "), "\n")
+  
+  # Show a small slice of the array
+  if (n_groups > 0 && length(topics) > 0 && length(valid_subteams) > 0) {
+    cat("\nPreference scores for first group:\n")
+    print(pref_array[1, , ])
+  }
+}
+
+```
+
+```{r data inputs}
+if (exists("topics") && exists("valid_subteams") && exists("n_groups")) {
+  # Define model parameters
+  n_topics <- length(topics)
+  n_subteams <- length(valid_subteams)
+  x_topic_teams <- 3  # can be adjusted
+  
+  # Define constants for the model
+  c_team <- 8       # each team should have a size of c
+  b_subteam <- 4     # each subteam should have an ideal size of b
+  p_penalty <- 10
+  minCapacity <- c_team - 2
+  
+  cat("Model parameters:\n")
+  cat("n_groups =", n_groups, "\n")
+  cat("n_topics =", n_topics, "\n")
+  cat("n_subteams =", n_subteams, "\n")
+  cat("x_topic_teams =", x_topic_teams, "\n")
+  cat("c_team =", c_team, "\n")
+  cat("b_subteam =", b_subteam, "\n")
+  cat("minCapacity =", minCapacity, "\n")
+}
+```
+
+# the model
+```{r model}
+
+# create model
+model <- MIPModel() %>%
+  
+  # 1) Decision variable A[g,t,j,s]
+  add_variable(A[g, t, j, s],
+               g = 1:n_groups,
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               type = "binary") %>%
+  
+  # 2) Slack variable for shortfall in each sub-team
+  # This can be integer if group sizes are integers.
+  add_variable(slack[t, j, s],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               s = 1:n_subteams,
+               lb = 0,
+               type = "integer") %>%
+
+  # 3) Team activation variable: Z[t,j] = 1 if team j under topic t is formed, 0 otherwise.
+  add_variable(Z[t, j],
+               t = 1:n_topics,
+               j = 1:x_topic_teams,
+               type = "binary") %>%
+  
+  # Objective: maximize sum of preferences - penalty * total slack
+  set_objective(
+    sum_expr(pref_array[g, t, s] * A[g, t, j, s],
+             g = 1:n_groups,
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams)
+    -
+    p_penalty * sum_expr(slack[t, j, s],
+                         t = 1:n_topics,
+                         j = 1:x_topic_teams,
+                         s = 1:n_subteams),
+    sense = "max"
+  ) %>%
+  
+  # 1) Each group is assigned exactly once
+  add_constraint(
+    sum_expr(A[g, t, j, s],
+             t = 1:n_topics,
+             j = 1:x_topic_teams,
+             s = 1:n_subteams) == 1,
+    g = 1:n_groups
+  ) %>%
+  
+  # 2) Each sub-team must have at least 1 group if the team is formed
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups) >= Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  ) %>%
+  
+  # 3) Sub-team capacity with slack: for each sub-team, total assigned group sizes plus slack equals b_subteam
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  ) %>%
+  
+  # 4) Tie assignments to team activation:
+  #    If Z[t,j]=0 then no groups can be assigned to any sub-team of team (t,j)
+  add_constraint(
+    sum_expr(A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) <= n_groups * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 5) Minimum team capacity: if team (t,j) is formed (Z[t,j]=1), it must have at least minCapacity members.
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups, s = 1:n_subteams) >= minCapacity * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams
+  ) %>%
+  
+  # 6) At least one team per topic
+  add_constraint(
+    sum_expr(Z[t, j], j = 1:x_topic_teams) >= 1,
+    t = 1:n_topics
+  ) %>%
+
+  # 7) Minimum threshold for each sub-team: if team (t,j) is active, then each sub-team must have at least (b_subteam - 1) members.
+  add_constraint(
+    sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) >= (b_subteam - 1) * Z[t,j],
+    t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+  )
+
+```
+
+```{r solve_model}
+result <- solve_model(
+  model,
+  with_ROI(
+    solver = "glpk",
+    verbose = TRUE,
+  )
+)
+result
+```
+
+```{r check}
+sum_of_all_students <- sum(group_size)
+max_capacity <- n_topics * n_subteams * b_subteams * x_topic_teams
+sum_of_all_students
+max_capacity
+large_groups <- which(group_size > b_subteam)  # or group_size > c_team
+large_groups
+```
+
+```{r}
+cat("Solver status:", result$status, "\n")
+cat("Objective value:", result$objective_value, "\n")
+```
+
+```{r extract_result}
+solution_A <- get_solution(result, A[g, t, j, s])
+assigned <- subset(solution_A, value > 0.5) # keep only assignments where A == 1
+assigned
+```
+
+```{r}
+solution_A <- get_solution(result, A[g, t, j, s])
+assigned <- subset(solution_A, value > 0.5) # keep only assignments where A == 1
+assigned$topic_name   <- topics[assigned$t]
+assigned$subteam_name <- valid_subteams[assigned$s]
+assigned$project_team <- paste0(assigned$topic_name, "_team", assigned$j)
+
+
+final_output_list <- lapply(seq_len(nrow(assigned)), function(k) {
+  # Extract the assigned row
+  g_val <- assigned$g[k]
+  project_team_val <- assigned$project_team[k]
+  subteam_val      <- assigned$subteam_name[k]
+  
+  # Get all student IDs in that group (row g_val)
+  row_ids <- df[g_val, group_id_cols, drop = FALSE]
+  # Filter out NA
+  student_ids <- unlist(row_ids[!is.na(row_ids)])
+  
+  # Build a small data frame: one row per student
+  if (length(student_ids) == 0) {
+    return(NULL)  # no valid IDs
+  }
+  data.frame(
+    student_id    = student_ids,
+    project_team  = project_team_val,
+    subteam       = subteam_val,
+    stringsAsFactors = FALSE
+  )
+})
+
+# Combine them all
+final_output <- do.call(rbind, final_output_list)
+final_output <- final_output[order(final_output$project_team), ]
+final_output
+```
+
+
+```{r export}
+write.csv(final_output, "final_output.csv", row.names = FALSE)
+```
+
+
+```{r compare model results with past results}
+past_result <- read.csv("/Users/juxue/Desktop/fyp/GroupAllocator/data/anonymized_data_2120_result.csv",
+               stringsAsFactors = FALSE, na.strings = c("","NA"))
+#past_result
+model_result <- read.csv("/Users/juxue/Desktop/fyp/GroupAllocator/final_output.csv",
+               stringsAsFactors = FALSE, na.strings = c("","NA"))
+#model_result
+
+merged_df <- model_result %>%
+  left_join(past_result, by = c("student_id" = "User.ID"))
+#merged_df
+write.csv(merged_df, "final_output_comparison.csv", row.names = FALSE)
+```

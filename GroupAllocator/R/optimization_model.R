@@ -1,13 +1,22 @@
 #' Run the Optimization
 #'
-#' Reads user inputs and survey data from import_data.R, builds and solves the MIP model,
+#' Reads user inputs and survey data, builds and solves the MIP model,
 #' and processes the solution into final assignments.
 #'
+#' @param student_data_path Path to the CSV file containing student survey data.
 #' @return A list with elements: solver_result (the raw optimization result) and
 #'         assignments (a data frame of student assignments).
 #' @export
-run_optimization <- function() {
-
+run_optimization <- function(student_data_path = "survey_data.csv") {
+  # Check if required packages are installed
+  required_packages <- c("dplyr", "tidyr", "slam", "ompr", "ompr.roi", "ROI.plugin.glpk")
+  for (pkg in required_packages) {
+    if (!requireNamespace(pkg, quietly = TRUE)) {
+      stop("Package '", pkg, "' needed for this function. Please install it.")
+    }
+  }
+  
+  # Load required packages
   library(dplyr)
   library(tidyr)
   library(slam)        
@@ -16,7 +25,7 @@ run_optimization <- function() {
   library(ROI.plugin.glpk)
 
   # 1) Read all data
-  data_list <- read_data("shiny_app/survey_data.csv")
+  data_list <- read_data(student_data_path)
   
   # 2) Extract parameters from the returned list
   c_team         <- data_list$c_team
@@ -29,13 +38,13 @@ run_optimization <- function() {
   topics         <- data_list$topics
   valid_subteams <- data_list$valid_subteams
   pref_array     <- data_list$pref_array
-  survey_df      <- data_list$survey_data
-  
-  # 3) constants for the model
+  survey_data    <- data_list$survey_data
+
+  # 3) Constants for the model
   p_penalty   <- 2
   minCapacity <- c_team - 2
   
-  # 4) the MIP model
+  # 4) The MIP model
   model <- MIPModel() %>%
     add_variable(A[g, t, j, s],
                  g = 1:n_groups,
@@ -57,7 +66,7 @@ run_optimization <- function() {
       sum_expr(pref_array[g, t, s] * A[g, t, j, s],
                g = 1:n_groups, t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams) -
       p_penalty * sum_expr(slack[t, j, s],
-                           g = 1:n_groups, t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams),
+                           t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams),
       sense = "max"
     ) %>%
     # (1) Each group is assigned exactly once
@@ -97,10 +106,16 @@ run_optimization <- function() {
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     )
   
-  # 5) Solve the model (using GLPK as an example)
-  result <- solve_model(model, with_ROI(solver = "glpk", verbose = TRUE))
+  # 5) Solve the model
+  result <- solve_model(
+    model,
+    with_ROI(
+      solver = "glpk",
+      verbose = TRUE
+    )
+  )
   
-  # 6) Process the solution:
+  # 6) Process the solution
   # 6a) Extract the solution for decision variable A[g,t,j,s]
   solution_A <- get_solution(result, A[g, t, j, s])
   
@@ -112,41 +127,38 @@ run_optimization <- function() {
   assigned$subteam_name <- valid_subteams[assigned$s]
   assigned$project_team <- paste0(assigned$topic_name, "_team", assigned$j)
   
-  # 6d) Retrieve student IDs for each group from survey data.
-  # Identify the columns in survey_df that start with "Student_ID"
-  group_id_cols <- grep("^Student_ID", names(survey_df), value = TRUE)
+  # 6d) Extract student IDs
+  group_id_cols <- grep("Student_ID", names(survey_data), value = TRUE)
   
   final_output_list <- lapply(seq_len(nrow(assigned)), function(k) {
+    # Extract the assigned row
     g_val <- assigned$g[k]
     project_team_val <- assigned$project_team[k]
     subteam_val      <- assigned$subteam_name[k]
     
-    # Get the row corresponding to group g_val and extract student IDs
-    row_ids <- survey_df[g_val, group_id_cols, drop = FALSE]
+    # Get all student IDs in that group
+    row_ids <- survey_data[g_val, group_id_cols, drop = FALSE]
+    # Filter out NA
     student_ids <- unlist(row_ids[!is.na(row_ids)])
-    if (length(student_ids) == 0) return(NULL)
     
+    # Build a small data frame: one row per student
+    if (length(student_ids) == 0) {
+      return(NULL)  # no valid IDs
+    }
     data.frame(
-      student_id   = student_ids,
-      project_team = project_team_val,
-      subteam      = subteam_val,
+      student_id    = student_ids,
+      project_team  = project_team_val,
+      subteam       = subteam_val,
       stringsAsFactors = FALSE
     )
   })
   
+  # Combine them all
   final_output <- do.call(rbind, final_output_list)
-  if (!is.null(final_output)) {
-    final_output <- final_output[order(final_output$project_team), ]
-  }
+  final_output <- final_output[order(final_output$project_team), ]
   
   list(
     solver_result = result,
     assignments   = final_output
   )
 }
-
-# Example of calling the function:
-# res <- run_optimization()
-# res$solver_result  # To inspect the raw solver output
-# head(res$assignments)  # To inspect the final assignments
-# write.csv(res$assignments, "final_assignments.csv", row.names = FALSE)
