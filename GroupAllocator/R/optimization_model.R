@@ -40,11 +40,11 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
   pref_array     <- data_list$pref_array
   survey_data    <- data_list$survey_data
 
-  # 3) Constants for the model
+  # 3) constants for the model
   p_penalty   <- 2
   minCapacity <- c_team - 2
   
-  # 4) The MIP model
+  # 4) the MIP model
   model <- MIPModel() %>%
     add_variable(A[g, t, j, s],
                  g = 1:n_groups,
@@ -106,16 +106,19 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     )
   
-  # 5) Solve the model
+  # 5) Solve the model (using GLPK with a time limit)
+  control <- list(tm_limit = 300)  # 5 minute time limit
+  
   result <- solve_model(
     model,
     with_ROI(
       solver = "glpk",
-      verbose = TRUE
+      verbose = TRUE,
+      control = control
     )
   )
   
-  # 6) Process the solution
+  # 6) Process the solution:
   # 6a) Extract the solution for decision variable A[g,t,j,s]
   solution_A <- get_solution(result, A[g, t, j, s])
   
@@ -127,7 +130,7 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
   assigned$subteam_name <- valid_subteams[assigned$s]
   assigned$project_team <- paste0(assigned$topic_name, "_team", assigned$j)
   
-  # 6d) Extract student IDs
+  # 6d) Retrieve student IDs for each group from survey data
   group_id_cols <- grep("Student_ID", names(survey_data), value = TRUE)
   
   final_output_list <- lapply(seq_len(nrow(assigned)), function(k) {
@@ -136,7 +139,7 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
     project_team_val <- assigned$project_team[k]
     subteam_val      <- assigned$subteam_name[k]
     
-    # Get all student IDs in that group
+    # Get all student IDs in that group (row g_val)
     row_ids <- survey_data[g_val, group_id_cols, drop = FALSE]
     # Filter out NA
     student_ids <- unlist(row_ids[!is.na(row_ids)])
@@ -155,8 +158,12 @@ run_optimization <- function(student_data_path = "survey_data.csv") {
   
   # Combine them all
   final_output <- do.call(rbind, final_output_list)
+  # Remove duplicates in case they occur
+  final_output <- unique(final_output)
+  # Sort by project team
   final_output <- final_output[order(final_output$project_team), ]
   
+  # Return results
   list(
     solver_result = result,
     assignments   = final_output

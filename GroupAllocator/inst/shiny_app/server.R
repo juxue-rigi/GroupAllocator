@@ -8,6 +8,7 @@ server <- function(input, output, session) {
   
   # Store username for display
   user_name <- reactiveVal("")
+  course_name <- reactiveVal("")
   
   # Reactive values for data
   params <- reactiveValues(
@@ -30,14 +31,16 @@ server <- function(input, output, session) {
     )
   })
 
+  # Handle download of results
   output$download_csv <- downloadHandler(
-  filename = function() {
-    paste("student_assignments_", Sys.Date(), ".csv", sep = "")
-  },
-  content = function(file) {
-    req(params$final_assignments)
-    write.csv(params$final_assignments, file, row.names = FALSE)
-  })
+    filename = function() {
+      paste("student_assignments_", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      req(params$final_assignments)
+      write.csv(params$final_assignments, file, row.names = FALSE)
+    }
+  )
   
   # --------------------------------------------------------------------------
   # Page Navigation
@@ -47,6 +50,7 @@ server <- function(input, output, session) {
   observeEvent(input$go, {
     if (input$username != "" && input$course != "") {
       user_name(input$username)
+      course_name(input$course)
       current_page("project_setup")
     } else {
       showModal(modalDialog(
@@ -131,6 +135,100 @@ server <- function(input, output, session) {
   })
   
   # --------------------------------------------------------------------------
+  # Parameter Change Logic on Results Page
+  # --------------------------------------------------------------------------
+  
+  # Toggle parameter panel on result page
+  observeEvent(input$change_params, {
+    shinyjs::toggle("params_panel")
+    
+    # Initialize new parameter inputs with current values
+    if (!is.null(params$c_team)) {
+      updateNumericInput(session, "new_c_team", value = params$c_team)
+      updateNumericInput(session, "new_b_subteam", value = params$b_subteam)
+      updateNumericInput(session, "new_x_topic_teams", value = params$x_topic_teams)
+    }
+  })
+  
+  # Run model again with new parameters
+  observeEvent(input$run_again, {
+    # Validate inputs
+    if (is.na(input$new_c_team) || is.na(input$new_b_subteam) || is.na(input$new_x_topic_teams)) {
+      showModal(modalDialog(
+        title = "Error",
+        "Please enter valid values for all fields.",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      return()
+    }
+    
+    # Save new parameters
+    data_to_save <- data.frame(
+      c_team        = input$new_c_team,
+      b_subteam     = input$new_b_subteam,
+      x_topic_teams = input$new_x_topic_teams
+    )
+    
+    # Update reactive values
+    params$c_team <- input$new_c_team
+    params$b_subteam <- input$new_b_subteam
+    params$x_topic_teams <- input$new_x_topic_teams
+    
+    # Save to CSV
+    tryCatch({
+      write.table(
+        data_to_save,
+        file = "user_inputs.csv",
+        sep = ",",
+        row.names = FALSE,
+        col.names = FALSE,
+        append = FALSE
+      )
+    }, error = function(e) {
+      showModal(modalDialog(
+        title = "Error",
+        paste("Failed to save settings:", e$message),
+        easyClose = TRUE,
+        footer = NULL
+      ))
+      return()
+    })
+    
+    # Show progress while running optimization
+    withProgress(message = "Running optimization with new parameters...", {
+      # Run the optimization with error handling
+      tryCatch({
+        # Pass the path to the uploaded CSV file
+        res <- run_optimization("survey_data.csv")
+        
+        # Store the results
+        params$final_assignments <- res$assignments
+        params$error_message <- NULL
+        
+        # Hide the parameter panel
+        shinyjs::hide("params_panel")
+        
+        # Show success message
+        showModal(modalDialog(
+          title = "Success",
+          "Model ran successfully with new parameters!",
+          easyClose = TRUE,
+          footer = modalButton("OK")
+        ))
+        
+      }, error = function(e) {
+        params$error_message <- e$message
+        showModal(modalDialog(
+          title = "Optimization Error",
+          paste("Failed to generate allocation with new parameters:", e$message),
+          easyClose = TRUE
+        ))
+      })
+    })
+  })
+  
+  # --------------------------------------------------------------------------
   # CSV Upload Logic
   # --------------------------------------------------------------------------
   
@@ -144,6 +242,9 @@ server <- function(input, output, session) {
     tryCatch({
       file.copy(input$survey_csv$datapath, dest_path, overwrite = TRUE)
       params$survey_uploaded <- TRUE
+      
+      # Enable the generate allocation button
+      shinyjs::enable("generate_allocation")
       
       showModal(modalDialog(
         title = "Upload Successful",
@@ -190,14 +291,20 @@ server <- function(input, output, session) {
     })
   })
 
-  
-  
   # --------------------------------------------------------------------------
   # Display the Allocation Table on the Result Page
   # --------------------------------------------------------------------------
   output$allocation_table <- renderTable({
     req(params$final_assignments)
     params$final_assignments
+  })
+  
+  # Display optimization parameters on result page
+  output$optimization_params <- renderText({
+    req(params$c_team, params$b_subteam, params$x_topic_teams)
+    paste("Current Settings: Team Size =", params$c_team, 
+          ", Subteam Size =", params$b_subteam, 
+          ", Max Teams per Topic =", params$x_topic_teams)
   })
   
   # Enable/disable the Generate Allocation button based on whether CSV is uploaded
@@ -209,12 +316,21 @@ server <- function(input, output, session) {
   # Display text
   # --------------------------------------------------------------------------
   output$welcome_message <- renderText({
-    req(user_name(), input$course)
-    paste("Hello", user_name(), ", Welcome to the Project Set-up Page for Course", input$course)
+    req(user_name(), course_name())
+    paste("Hello", user_name(), ", Welcome to the Project Set-up Page for Course", course_name())
   })
   
   output$profile_name <- renderText({
     req(user_name())
     paste("Hello,", user_name())
+  })
+  
+  # Update input values when returning to the project setup page
+  observe({
+    if (current_page() == "project_setup" && !is.null(params$c_team)) {
+      updateNumericInput(session, "c_team", value = params$c_team)
+      updateNumericInput(session, "b_subteam", value = params$b_subteam)
+      updateNumericInput(session, "x_topic_teams", value = params$x_topic_teams)
+    }
   })
 }

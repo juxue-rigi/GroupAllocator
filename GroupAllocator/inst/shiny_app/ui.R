@@ -143,10 +143,40 @@ csv_upload_ui <- fluidPage(
 # ------------------------------------------------------------------------------
 # Define UI for the Result Page
 # ------------------------------------------------------------------------------
+
 result_ui <- fluidPage(
   titlePanel("Allocation Results"),
   fluidRow(
     column(width = 12,
+           # Display current optimization parameters
+           wellPanel(
+             textOutput("optimization_params"),
+             actionButton("change_params", "Change Parameter Settings", class = "btn-info")
+           ),
+           
+           # Collapsible parameter settings panel (initially hidden)
+           shinyjs::hidden(
+             div(id = "params_panel", class = "well",
+                 h4("Update Parameters"),
+                 fluidRow(
+                   column(width = 4, 
+                          numericInput("new_c_team", "Team Size:", 
+                                      value = 8, min = 1, max = 20)
+                   ),
+                   column(width = 4, 
+                          numericInput("new_b_subteam", "Subteam Size:", 
+                                      value = 4, min = 1, max = 10)
+                   ),
+                   column(width = 4, 
+                          numericInput("new_x_topic_teams", "Max Teams per Topic:", 
+                                      value = 3, min = 1, max = 10)
+                   )
+                 ),
+                 actionButton("run_again", "Run Model with New Parameters", class = "btn-success")
+             )
+           ),
+           
+           # Results section
            h3("Student Assignments"),
            p("The table below shows the final assignments of students to project teams and subteams."),
            div(style = "overflow-x: auto;", # Make table scrollable horizontally
