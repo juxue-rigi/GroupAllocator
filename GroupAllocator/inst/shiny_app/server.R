@@ -324,6 +324,11 @@ server <- function(input, output, session) {
     req(user_name())
     paste("Hello,", user_name())
   })
+
+  output$course_display <- renderText({
+    req(course_name())
+    paste("Course:", course_name())
+  })
   
   # Update input values when returning to the project setup page
   observe({

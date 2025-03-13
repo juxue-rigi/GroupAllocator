@@ -1,31 +1,242 @@
 # ------------------------------------------------------------------------------
+# Global CSS and Custom Theme
+# ------------------------------------------------------------------------------
+custom_styles <- tags$head(
+  tags$style(HTML("
+    :root {
+      --primary: #2c3e50;
+      --secondary: #3498db;
+      --accent: #1abc9c;
+      --light: #ecf0f1;
+      --dark: #34495e;
+      --danger: #e74c3c;
+      --warning: #f39c12;
+      --success: #2ecc71;
+    }
+    
+    body {
+      font-family: 'Roboto', 'Helvetica Neue', sans-serif;
+      background-color: #f5f7fa;
+      color: var(--dark);
+      line-height: 1.6;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 2rem;
+      margin-bottom: 2rem;
+      border-top: 4px solid var(--accent);
+    }
+    
+    .btn-custom-primary {
+      background-color: var(--secondary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-custom-primary:hover {
+      background-color: #2980b9;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-custom-secondary {
+      background-color: var(--light);
+      color: var(--dark);
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-custom-secondary:hover {
+      background-color: #dfe6e9;
+      transform: translateY(-2px);
+    }
+    
+    .btn-custom-success {
+      background-color: var(--success);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-custom-success:hover {
+      background-color: #27ae60;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-custom-info {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 16px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-custom-info:hover {
+      background-color: #243441;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+    
+    h1, h2, h3, h4 {
+      color: var(--primary);
+      font-weight: 600;
+    }
+    
+    .page-title {
+      color: var(--primary);
+      text-align: center;
+      margin-bottom: 2rem;
+      font-weight: 700;
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 0.5rem;
+      display: inline-block;
+    }
+    
+    .center-container { 
+      display: flex; 
+      flex-direction: column; 
+      justify-content: center; 
+      align-items: center; 
+      min-height: 90vh; 
+      width: 100%; 
+      padding: 2rem;
+    }
+    
+    .profile-section {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      margin-bottom: 20px;
+      background-color: var(--light);
+      padding: 10px 20px;
+      border-radius: 8px;
+    }
+    
+    .form-control {
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      margin-bottom: 15px;
+      transition: all 0.3s ease;
+    }
+    
+    .form-control:focus {
+      border-color: var(--secondary);
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+    }
+    
+    label {
+      font-weight: 500;
+      margin-bottom: 5px;
+      display: block;
+      color: var(--dark);
+    }
+    
+    .well {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    
+    th {
+      background-color: var(--primary);
+      color: white;
+      text-align: left;
+      padding: 12px;
+    }
+    
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+    
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+    
+    .file-input-container {
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+      transition: all 0.3s ease;
+      margin-bottom: 20px;
+    }
+    
+    .file-input-container:hover {
+      border-color: var(--secondary);
+    }
+    
+    .progress-container {
+      margin: 20px 0;
+    }
+    
+    .progress {
+      height: 8px;
+      border-radius: 4px;
+      background-color: #eee;
+    }
+    
+    .progress-bar {
+      background-color: var(--accent);
+      border-radius: 4px;
+    }
+  "))
+)
+
+# ------------------------------------------------------------------------------
 # Define UI for Login Page
 # ------------------------------------------------------------------------------
 login_ui <- fluidPage(
-  tags$head(
-    tags$style(HTML("
-      .center-container { 
-        display: flex; 
-        flex-direction: column; 
-        justify-content: center; 
-        align-items: center; 
-        height: 100vh; 
-        width: 100%; 
-      }
-      .form-container {
-        max-width: 1000px; 
-        width: 100%; 
-        text-align: center;
-      }
-    "))
-  ),
+  custom_styles,
   div(class = "center-container",
-      titlePanel("Login Page"),
-      div(class = "form-container",
-          wellPanel(
-            textInput("username", "Enter your username:"),
-            textInput("course", "Enter your course name:"),
-            actionButton("go", "Go to Project Set-up", class = "btn-primary")
+      div(class = "card", style = "max-width: 500px; width: 100%;",
+          div(style = "text-align: center; margin-bottom: 2rem;",
+              h1("Team Formation Assistant", class = "page-title"),
+              p("Please enter your details to get started")
+          ),
+          textInput("username", "Username", placeholder = "Enter your username"),
+          textInput("course", "Course Name", placeholder = "Enter your course name"),
+          div(style = "text-align: center; margin-top: 2rem;",
+              actionButton("go", "Go to Project Set-up", class = "btn-custom-primary", 
+                           style = "width: 100%;")
           )
       )
   )
@@ -35,62 +246,79 @@ login_ui <- fluidPage(
 # Define UI for Project Setup Page
 # ------------------------------------------------------------------------------
 project_setup_ui <- fluidPage(
-  tags$head(
-    tags$style(HTML("
-      .project-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        min-height: 100vh;
-        width: 100%;
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 20px;
-        box-sizing: border-box;
-      }
-      .profile-section {
-        display: flex;
-        justify-content: flex-end;
-        align-items: center;
-        gap: 10px;
-        width: 100%;
-        margin-bottom: 20px;
-      }
-      .main-content {
-        width: 100%;
-      }
-      .button-group {
-        margin-top: 20px;
-      }
-    "))
-  ),
-  div(class = "project-container",
-      titlePanel(textOutput("welcome_message")),
-      
-      # Profile section - use a default icon instead of relying on profile.png
+  custom_styles,
+  div(class = "container", style = "max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;",
+      # Profile section
       div(class = "profile-section",
-          tags$i(class = "fa fa-user-circle", style = "font-size: 30px; cursor: pointer;", id = "profile_pic"),
-          textOutput("profile_name")
+          tags$i(class = "fa fa-user-circle", style = "font-size: 24px; color: var(--primary);"),
+          span(textOutput("profile_name"), style = "font-weight: 500;"),
+          span(style = "flex-grow: 1;"),
+          span(textOutput("course_display"), style = "color: var(--secondary); font-weight: 500;")
       ),
       
-      # Main content: centered column for numeric inputs and buttons
-      div(class = "main-content",
-          fluidRow(
-            column(width = 4, offset = 4,
-                   numericInput("c_team", "What is the size of each topic group?",
-                                value = 8, min = 1, max = 20),
-                   numericInput("b_subteam", "What is the size of the sub-team under each topic groups?",
-                                value = 4, min = 1, max = 10),
-                   numericInput("x_topic_teams", "For each topic, set a threshold for the number of teams under each topic:",
-                                value = 3, min = 1, max = 10),
-                   div(class = "button-group",
-                       actionButton("go_survey", "Open Microsoft Form Template", class = "btn-primary"),
-                       br(), br(),
-                       actionButton("next_step", "Next Step", class = "btn-primary"),
-                       br(), br(),
-                       actionButton("back_to_login", "Back", class = "btn-secondary")
-                   )
-            )
+      # Title and welcome
+      div(style = "text-align: center; margin-bottom: 3rem;",
+          h1("Project Set-up", class = "page-title"),
+          h3(textOutput("welcome_message"), style = "font-weight: 400; color: var(--dark);")
+      ),
+      
+      # Main content
+      div(class = "card", style = "max-width: 800px; margin: 0 auto;",
+          h3("Configure Team Formation Parameters", style = "text-align: center; margin-bottom: 2rem;"),
+          
+          div(style = "max-width: 500px; margin: 0 auto;",
+              div(class = "form-group",
+                  numericInput("c_team", 
+                              tags$span(
+                                tags$i(class = "fa fa-users", style = "margin-right: 8px; color: var(--secondary);"), 
+                                "Team Size"
+                              ),
+                              value = 8, min = 1, max = 20)
+              ),
+              
+              div(class = "form-group",
+                  numericInput("b_subteam", 
+                              tags$span(
+                                tags$i(class = "fa fa-user-friends", style = "margin-right: 8px; color: var(--secondary);"), 
+                                "Sub-team Size"
+                              ),
+                              value = 4, min = 1, max = 10)
+              ),
+              
+              div(class = "form-group",
+                  numericInput("x_topic_teams", 
+                              tags$span(
+                                tags$i(class = "fa fa-project-diagram", style = "margin-right: 8px; color: var(--secondary);"), 
+                                "Max Teams per Topic"
+                              ),
+                              value = 3, min = 1, max = 10)
+              ),
+              
+              div(class = "button-group", style = "flex-direction: column; align-items: stretch;",
+                  actionButton("go_survey", 
+                              tags$span(
+                                tags$i(class = "fa fa-file-alt", style = "margin-right: 8px;"), 
+                                "Open Microsoft Form Template"
+                              ), 
+                              class = "btn-custom-primary", 
+                              style = "width: 100%; margin-bottom: 15px;"),
+                  
+                  actionButton("next_step", 
+                              tags$span(
+                                tags$i(class = "fa fa-arrow-right", style = "margin-right: 8px;"), 
+                                "Next Step"
+                              ), 
+                              class = "btn-custom-success", 
+                              style = "width: 100%; margin-bottom: 15px;"),
+                  
+                  actionButton("back_to_login", 
+                              tags$span(
+                                tags$i(class = "fa fa-arrow-left", style = "margin-right: 8px;"), 
+                                "Back"
+                              ), 
+                              class = "btn-custom-secondary", 
+                              style = "width: 100%;")
+              )
           )
       )
   )
@@ -100,42 +328,76 @@ project_setup_ui <- fluidPage(
 # Define UI for CSV Upload Page (Student Survey Data)
 # ------------------------------------------------------------------------------
 csv_upload_ui <- fluidPage(
-  tags$head(
-    tags$style(HTML("
-      .upload-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 20px;
-      }
-      .instruction-section {
-        max-width: 800px;
-        margin-bottom: 20px;
-      }
-      .button-group {
-        margin-top: 20px;
-      }
-    "))
-  ),
-  titlePanel("Upload Student Survey Data"),
-  div(class = "upload-container",
-      div(class = "instruction-section",
-          h3("Instructions"),
-          p("Please upload the CSV file containing the student survey responses. The file should include the required columns:"),
-          tags$ul(
-            tags$li("Student_ID columns for each student in a group"),
-            tags$li("Topic columns for topic preferences"),
-            tags$li("Subteam columns for subteam preferences")
-          ),
-          p("Ensure that the CSV is formatted correctly. Once uploaded, the data will be processed and converted into the inputs needed for the optimization model.")
+  custom_styles,
+  div(class = "container", style = "max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;",
+      # Profile section
+      div(class = "profile-section",
+          tags$i(class = "fa fa-user-circle", style = "font-size: 24px; color: var(--primary);"),
+          span(textOutput("profile_name"), style = "font-weight: 500;"),
+          span(style = "flex-grow: 1;"),
+          span(textOutput("course_display"), style = "color: var(--secondary); font-weight: 500;")
       ),
-      fileInput("survey_csv", "Choose CSV File", accept = ".csv"),
-      actionButton("upload_csv", "Upload CSV", class = "btn-primary"),
-      div(class = "button-group",
-          br(),
-          actionButton("generate_allocation", "Generate Allocation", class = "btn-success", disabled = TRUE),
-          br(), br(),
-          actionButton("back_to_setup", "Back", class = "btn-secondary")
+      
+      # Title
+      div(style = "text-align: center; margin-bottom: 3rem;",
+          h1("Upload Survey Data", class = "page-title")
+      ),
+      
+      # Main content
+      div(class = "card",
+          div(style = "text-align: center; margin-bottom: 2rem;",
+              tags$i(class = "fa fa-file-csv", style = "font-size: 48px; color: var(--secondary); margin-bottom: 1rem;"),
+              h3("Student Survey Data", style = "margin-bottom: 0.5rem;"),
+              p("Upload the CSV file containing student preferences", style = "color: #666;")
+          ),
+          
+          div(class = "file-input-container",
+              fileInput("survey_csv", "Choose CSV File", 
+                        accept = ".csv",
+                        buttonLabel = tags$span(tags$i(class = "fa fa-upload"), "Browse"),
+                        placeholder = "No file selected")
+          ),
+          
+          div(style = "text-align: center;",
+              actionButton("upload_csv", 
+                          tags$span(
+                            tags$i(class = "fa fa-cloud-upload-alt", style = "margin-right: 8px;"), 
+                            "Upload CSV"
+                          ), 
+                          class = "btn-custom-primary")
+          ),
+          
+          hr(),
+          
+          div(style = "margin-top: 2rem;",
+              h4("Required Data Format", style = "color: var(--primary); margin-bottom: 1rem;"),
+              p("Please ensure your CSV file contains the following columns:"),
+              
+              div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent);",
+                  tags$ul(
+                    tags$li(strong("Student_ID"), " columns for each student in a group"),
+                    tags$li(strong("Topic"), " columns for topic preferences"),
+                    tags$li(strong("Subteam"), " columns for subteam preferences")
+                  )
+              ),
+              
+              div(class = "button-group", style = "justify-content: space-between; margin-top: 2rem;",
+                  actionButton("back_to_setup", 
+                              tags$span(
+                                tags$i(class = "fa fa-arrow-left", style = "margin-right: 8px;"), 
+                                "Back"
+                              ), 
+                              class = "btn-custom-secondary"),
+                  
+                  actionButton("generate_allocation", 
+                              tags$span(
+                                tags$i(class = "fa fa-cogs", style = "margin-right: 8px;"), 
+                                "Generate Allocation"
+                              ), 
+                              class = "btn-custom-success", 
+                              disabled = TRUE)
+              )
+          )
       )
   )
 )
@@ -143,50 +405,101 @@ csv_upload_ui <- fluidPage(
 # ------------------------------------------------------------------------------
 # Define UI for the Result Page
 # ------------------------------------------------------------------------------
-
 result_ui <- fluidPage(
-  titlePanel("Allocation Results"),
-  fluidRow(
-    column(width = 12,
-           # Display current optimization parameters
-           wellPanel(
-             textOutput("optimization_params"),
-             actionButton("change_params", "Change Parameter Settings", class = "btn-info")
-           ),
-           
-           # Collapsible parameter settings panel (initially hidden)
-           shinyjs::hidden(
-             div(id = "params_panel", class = "well",
-                 h4("Update Parameters"),
-                 fluidRow(
-                   column(width = 4, 
-                          numericInput("new_c_team", "Team Size:", 
-                                      value = 8, min = 1, max = 20)
-                   ),
-                   column(width = 4, 
-                          numericInput("new_b_subteam", "Subteam Size:", 
-                                      value = 4, min = 1, max = 10)
-                   ),
-                   column(width = 4, 
-                          numericInput("new_x_topic_teams", "Max Teams per Topic:", 
-                                      value = 3, min = 1, max = 10)
-                   )
-                 ),
-                 actionButton("run_again", "Run Model with New Parameters", class = "btn-success")
-             )
-           ),
-           
-           # Results section
-           h3("Student Assignments"),
-           p("The table below shows the final assignments of students to project teams and subteams."),
-           div(style = "overflow-x: auto;", # Make table scrollable horizontally
-               tableOutput("allocation_table")
-           ),
-           br(),
-           downloadButton("download_csv", "Download Assignments as CSV"),
-           br(), br(),
-           actionButton("back_to_upload", "Back", class = "btn-secondary")
-    )
+  custom_styles,
+  div(class = "container", style = "max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;",
+      # Profile section
+      div(class = "profile-section",
+          tags$i(class = "fa fa-user-circle", style = "font-size: 24px; color: var(--primary);"),
+          span(textOutput("profile_name"), style = "font-weight: 500;"),
+          span(style = "flex-grow: 1;"),
+          span(textOutput("course_display"), style = "color: var(--secondary); font-weight: 500;")
+      ),
+      
+      # Title
+      div(style = "text-align: center; margin-bottom: 2rem;",
+          h1("Allocation Results", class = "page-title")
+      ),
+      
+      # Parameters section
+      div(class = "card",
+          div(style = "display: flex; justify-content: space-between; align-items: center;",
+              div(
+                h4("Current Parameters", style = "margin: 0; color: var(--primary);"),
+                textOutput("optimization_params")
+              ),
+              actionButton("change_params", 
+                          tags$span(
+                            tags$i(class = "fa fa-sliders-h", style = "margin-right: 8px;"), 
+                            "Change Parameters"
+                          ), 
+                          class = "btn-custom-info")
+          ),
+          
+          # Collapsible parameter settings panel (initially hidden)
+          shinyjs::hidden(
+            div(id = "params_panel", style = "margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;",
+                h4("Update Parameters", style = "margin-bottom: 20px; color: var(--primary);"),
+                
+                div(style = "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;",
+                    div(
+                      numericInput("new_c_team", 
+                                  tags$span(
+                                    tags$i(class = "fa fa-users", style = "margin-right: 8px; color: var(--secondary);"), 
+                                    "Team Size"
+                                  ),
+                                  value = 8, min = 1, max = 20)
+                    ),
+                    div(
+                      numericInput("new_b_subteam", 
+                                  tags$span(
+                                    tags$i(class = "fa fa-user-friends", style = "margin-right: 8px; color: var(--secondary);"), 
+                                    "Subteam Size"
+                                  ),
+                                  value = 4, min = 1, max = 10)
+                    ),
+                    div(
+                      numericInput("new_x_topic_teams", 
+                                  tags$span(
+                                    tags$i(class = "fa fa-project-diagram", style = "margin-right: 8px; color: var(--secondary);"), 
+                                    "Max Teams per Topic"
+                                  ),
+                                  value = 3, min = 1, max = 10)
+                    )
+                ),
+                
+                div(style = "text-align: right; margin-top: 20px;",
+                    actionButton("run_again", 
+                                tags$span(
+                                  tags$i(class = "fa fa-sync", style = "margin-right: 8px;"), 
+                                  "Run with New Parameters"
+                                ), 
+                                class = "btn-custom-success")
+                )
+            )
+          )
+      ),
+      
+      # Results section
+      div(class = "card", style = "margin-top: 2rem;",
+          div(style = "display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;",
+              h3("Student Assignments", style = "margin: 0;"),
+              downloadButton("download_csv", "Download as CSV", class = "btn-custom-primary")
+          ),
+          
+          div(style = "overflow-x: auto; margin-bottom: 20px;",
+              tableOutput("allocation_table")
+          ),
+          
+          div(style = "text-align: center;",
+              actionButton("back_to_upload", 
+                          tags$span(
+                            tags$i(class = "fa fa-arrow-left", style = "margin-right: 8px;"), 
+                            "Back to Upload"
+                          ), 
+                          class = "btn-custom-secondary")
+          )
+      )
   )
 )
 
@@ -198,6 +511,7 @@ ui <- fluidPage(
   shinyjs::useShinyjs(),
   tags$head(
     tags$link(rel = "stylesheet", href = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"),
+    tags$link(rel = "stylesheet", href = "https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap"),
     tags$script(HTML("
       Shiny.addCustomMessageHandler('jsCode', function(code) {
         eval(code);
@@ -217,3 +531,4 @@ ui <- fluidPage(
   ),
   uiOutput("main_ui")
 )
+
