@@ -2,7 +2,7 @@
 # Read Project Parameters from Project Set-Up Page
 #--------------------------------------------------------------
 read_project_data <- function() {
-  # We assume user_inputs.csv is in the same folder as this script or your app
+  # assume user_inputs.csv is in the same folder as this script or your app
   user_inputs_path <- "user_inputs.csv"
   if (!file.exists(user_inputs_path)) {
     stop("user_inputs.csv not found. Please ensure the file is in the correct directory.")
