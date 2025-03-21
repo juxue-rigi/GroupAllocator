@@ -1,3 +1,5 @@
+
+
 # ------------------------------------------------------------------------------
 # Global CSS and Custom Theme
 # ------------------------------------------------------------------------------
@@ -219,6 +221,94 @@ custom_styles <- tags$head(
       background-color: var(--accent);
       border-radius: 4px;
       height: 8px;
+    }
+
+    .dataTable select {
+      width: 100%;
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background-color: white;
+      font-family: inherit;
+    }
+
+    .dataTable select:focus {
+      outline: none;
+      border-color: var(--secondary);
+      box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.25);
+    }
+
+    /* Highlight changed rows */
+    .row-modified {
+      background-color: rgba(26, 188, 156, 0.15) !important;
+    }
+
+    /* Edit mode indicator */
+    .edit-mode-indicator {
+      background-color: var(--light);
+      border-left: 4px solid var(--warning);
+      padding: 10px 15px;
+      margin-bottom: 15px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+    }
+
+    .edit-mode-indicator i {
+      font-size: 20px;
+      color: var(--warning);
+      margin-right: 10px;
+    }
+
+    .edit-mode-indicator .score-impact {
+      margin-top: 5px;
+      font-weight: 500;
+    }
+
+    .score-impact.positive {
+      color: var(--success);
+    }
+
+    .score-impact.negative {
+      color: var(--danger);
+    }
+
+    .score-impact.neutral {
+      color: var(--dark);
+    }
+
+    /* Tooltip styling */
+    .tooltip-inner {
+      background-color: var(--dark);
+      color: white;
+      border-radius: 4px;
+      padding: 8px 12px;
+      max-width: 250px;
+    }
+
+    .tooltip.bs-tooltip-auto[x-placement^=top] .arrow::before, 
+    .tooltip.bs-tooltip-top .arrow::before {
+      border-top-color: var(--dark);
+    }
+
+    /* Styling for validation messages */
+    .validation-message {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 4px;
+      color: white;
+    }
+
+    .validation-message.error {
+      background-color: var(--danger);
+    }
+
+    .validation-message.warning {
+      background-color: var(--warning);
+    }
+
+    .validation-message.success {
+      background-color: var(--success);
     }
   "))
 )
@@ -514,7 +604,6 @@ result_ui <- fluidPage(
           
           # Collapsible parameter settings panel (initially hidden)
           shinyjs::hidden(
-
             div(id = "params_panel", style = "margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;",
                 h4("Update Parameters", style = "margin-bottom: 20px; color: var(--primary);"),
                 
@@ -607,10 +696,42 @@ result_ui <- fluidPage(
               uiOutput("score_comparison_text")
           ),
           
-          # Modified table container with centering styles
-          div(style = "overflow-x: auto; margin-bottom: 20px; display: flex; justify-content: center;",
-              div(style = "min-width: 80%; max-width: 100%;",
-                  tableOutput("allocation_table")
+          # Modified table container with editing capability
+          div(style = "overflow-x: auto; margin-bottom: 20px;",
+              # Add a toggle button for manual edit mode
+              div(style = "display: flex; justify-content: flex-end; margin-bottom: 10px;",
+                  actionButton("toggle_edit_mode", 
+                              tags$span(
+                                tags$i(class = "fa fa-edit", style = "margin-right: 8px;"), 
+                                "Toggle Manual Edit Mode"
+                              ), 
+                              class = "btn-custom-info")
+              ),
+              # Conditional UI display based on edit mode
+              conditionalPanel(
+                condition = "input.toggle_edit_mode % 2 == 0", # Even clicks = normal mode
+                div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
+                    tableOutput("allocation_table")
+                )
+              ),
+              conditionalPanel(
+                condition = "input.toggle_edit_mode % 2 == 1", # Odd clicks = edit mode
+                div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
+                    DT::dataTableOutput("editable_allocation_table")
+                ),
+                div(style = "margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--warning);",
+                    div(style = "display: flex; align-items: center;",
+                        tags$i(class = "fa fa-info-circle", style = "color: var(--warning); font-size: 20px; margin-right: 10px;"),
+                        div(
+                          h5("Manual Edit Mode", style = "margin: 0; color: var(--dark);"),
+                          p("You can manually edit student assignments by selecting a new project team or subteam from the dropdown.", 
+                            style = "margin: 0; color: var(--dark);")
+                        )
+                    ),
+                    div(style = "margin-top: 10px;",
+                        textOutput("manual_edit_score_impact")
+                    )
+                )
               )
           ),
           
@@ -654,4 +775,5 @@ ui <- fluidPage(
   ),
   uiOutput("main_ui")
 )
+
 

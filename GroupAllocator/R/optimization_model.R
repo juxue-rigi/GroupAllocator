@@ -194,7 +194,7 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
   
   # Process the solution assignments
   optimal_assignments <- process_solution(solution_A, survey_data, topics, valid_subteams, 
-                                         group_size, objective_values[1], 1)
+                                         group_size, objective_values[1], 1, pref_array)
   
   # Store the assignments
   assignments_list[[1]] <- optimal_assignments
@@ -284,10 +284,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
     solution_A <- get_solution(result, A[g, t, j, s])
     solutions[[sol_idx]] <- solution_A
     
-    # Process the solution assignments
+    # Process the solution assignments (scores are calculated inside process_solution)
     solution_assignments <- process_solution(solution_A, survey_data, topics, valid_subteams, 
                                            group_size, obj_val, sol_idx)
-    
+
     # Store the assignments
     assignments_list[[sol_idx]] <- solution_assignments
   }
@@ -333,7 +333,8 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
 #' @param solution_number The solution index
 #' @return A data frame of assignments
 process_solution <- function(solution_A, survey_data, topics, valid_subteams, 
-                            group_size, objective_value, solution_number) {
+                            group_size, objective_value, solution_number, pref_array = NULL) {
+
   # Filter to keep only assignments (A==1)
   assigned <- subset(solution_A, value > 0.5)
   
@@ -396,10 +397,56 @@ process_solution <- function(solution_A, survey_data, topics, valid_subteams,
   # Sort by project team
   final_output <- final_output[order(final_output$project_team), ]
   
+  # Add individual scores
+  final_output$individual_score <- 0
+
+  if (is.null(pref_array)) {
+        # Try to get it from the parent environment
+        if (exists("pref_array", envir = parent.frame())) {
+            pref_array <- get("pref_array", envir = parent.frame())
+        } else {
+            # If not available, leave individual scores as 0
+            warning("pref_array not available; individual scores will be set to 0")
+        }
+    }
+  
+  # Calculate individual score for each student
+  for (i in 1:nrow(final_output)) {
+    student_id <- final_output$student_id[i]
+    project_team <- final_output$project_team[i]
+    subteam <- final_output$subteam[i]
+    
+    # Extract topic from project_team
+    topic_parts <- strsplit(project_team, "_team")[[1]]
+    if (length(topic_parts) > 0) {
+      topic <- topic_parts[1]
+    
+      # Find the group in survey data
+      student_cols <- grep("Student_ID", names(survey_data), value = TRUE)
+      group_indices <- sapply(1:nrow(survey_data), function(row_idx) {
+        row_data <- survey_data[row_idx, student_cols, drop = FALSE]
+        any(row_data == student_id, na.rm = TRUE)
+      })
+      
+      if (any(group_indices)) {
+        group_idx <- which(group_indices)[1]
+        topic_idx <- match(topic, topics)
+        subteam_idx <- match(subteam, valid_subteams)
+        
+        if (!is.na(topic_idx) && !is.na(subteam_idx)) {
+          # Get preference score from the array
+          student_score <- pref_array[group_idx, topic_idx, subteam_idx]
+          final_output$individual_score[i] <- student_score
+        }
+      }
+    }
+  }
+  
   # Print a summary
   message(paste("Solution", solution_number, "assigned", nrow(final_output), "students to", 
                 length(unique(final_output$project_team)), "project teams"))
   
-  # Return the assignments
+  # Return the assignments with individual scores
   return(final_output)
 }
+
