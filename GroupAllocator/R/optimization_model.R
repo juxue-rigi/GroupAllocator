@@ -1,3 +1,17 @@
+#===========================================================================
+# TABLE OF CONTENTS
+#===========================================================================
+# 1. OPTIMIZATION FUNCTIONS
+#    - run_multi_solution_optimization: Main optimization workflow
+#
+# 2. HELPER FUNCTIONS
+#    - process_solution: Convert solution variables to assignments
+#===========================================================================
+
+#===========================================================================
+# 1. OPTIMIZATION FUNCTIONS
+#===========================================================================
+
 #' Run the Optimization and Find Top-K Solutions
 #'
 #' Reads user inputs and survey data,
@@ -29,6 +43,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
   library(ompr.roi)
   library(ROI.plugin.glpk)
 
+  #---------------------------------------------------------------------------
+  # Data Loading and Parameter Extraction
+  #---------------------------------------------------------------------------
+  
   # 1) Read all data
   data_list <- read_data(student_data_path)
   
@@ -63,6 +81,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
   # Print topic and subteam counts to verify data
   message("Topics (", n_topics, "): ", paste(topics, collapse = ", "))
   message("Subteams (", n_subteams, "): ", paste(valid_subteams, collapse = ", "))
+  
+  #---------------------------------------------------------------------------
+  # Base Model Definition
+  #---------------------------------------------------------------------------
   
   # Initialize lists to store results
   solver_results <- list()
@@ -149,7 +171,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     )
   
-  # Step 1: Find the optimal solution first
+  #---------------------------------------------------------------------------
+  # Find Optimal Solution (First Solution)
+  #---------------------------------------------------------------------------
+  
   message("Finding optimal solution...")
   
   # Solve with no additional constraints to get the optimal solution
@@ -196,6 +221,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
   
   # Store the assignments
   assignments_list[[1]] <- optimal_assignments
+  
+  #---------------------------------------------------------------------------
+  # Find Additional Solutions (2 to k_solutions)
+  #---------------------------------------------------------------------------
   
   # Calculate the minimum acceptable score (based on the gap)
   min_acceptable_score <- optimal_obj_val * (1 - score_gap_percent/100)
@@ -290,6 +319,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
     assignments_list[[sol_idx]] <- solution_assignments
   }
   
+  #---------------------------------------------------------------------------
+  # Finalize Results and Return
+  #---------------------------------------------------------------------------
+  
   # Remove any NULL entries
   valid_indices <- which(!sapply(assignments_list, is.null))
   
@@ -317,6 +350,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
     best_solution_index = which.max(objective_values)
   )
 }
+
+#===========================================================================
+# 2. HELPER FUNCTIONS
+#===========================================================================
 
 #' Process a solution into assignments
 #'
@@ -447,4 +484,3 @@ process_solution <- function(solution_A, survey_data, topics, valid_subteams,
   # Return the assignments with individual scores
   return(final_output)
 }
-
