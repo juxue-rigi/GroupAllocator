@@ -143,8 +143,6 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
       t = 1:n_topics, j = 1:x_topic_teams
     ) %>%
     
-    # (6) Make topic team requirement optional (handled via objective)
-    
     # (7) Relaxed subteam threshold
     add_constraint(
       sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) >= Z[t, j],

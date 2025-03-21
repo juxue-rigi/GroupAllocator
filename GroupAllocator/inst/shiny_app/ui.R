@@ -1,4 +1,23 @@
+#===========================================================================
+# TABLE OF CONTENTS
+#===========================================================================
+# 1. THEME AND STYLING
+#    - Global CSS and Custom Theme
+#
+# 2. PAGE DEFINITIONS
+#    - Login Page UI
+#    - Project Setup Page UI
+#    - CSV Upload Page UI
+#    - Results Page UI
+#
+# 3. MAIN UI ASSEMBLY
+#    - Dynamic UI Output
+#===========================================================================
 
+
+#===========================================================================
+# 1. THEME AND STYLING
+#===========================================================================
 
 # ------------------------------------------------------------------------------
 # Global CSS and Custom Theme
@@ -313,9 +332,13 @@ custom_styles <- tags$head(
   "))
 )
 
-# ------------------------------------------------------------------------------
-# Define UI for Login Page
-# ------------------------------------------------------------------------------
+#===========================================================================
+# 2. PAGE DEFINITIONS
+#===========================================================================
+
+#---------------------------------------------------------------------------
+# Login Page UI
+#---------------------------------------------------------------------------
 login_ui <- fluidPage(
   custom_styles,
   div(class = "center-container",
@@ -334,9 +357,9 @@ login_ui <- fluidPage(
   )
 )
 
-# ------------------------------------------------------------------------------
-# Define UI for Project Setup Page
-# ------------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# Project Setup Page UI
+#---------------------------------------------------------------------------
 project_setup_ui <- fluidPage(
   custom_styles,
   div(class = "container", style = "max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;",
@@ -411,6 +434,7 @@ project_setup_ui <- fluidPage(
                   </table>')
           ),
           
+          # Parameter input form
           div(style = "max-width: 500px; margin: 0 auto;",
               div(class = "form-group",
                   numericInput("c_team", 
@@ -448,6 +472,7 @@ project_setup_ui <- fluidPage(
                               value = 3, min = 1, max = 10)
               ),
               
+              # Button group
               div(class = "button-group", style = "flex-direction: column; align-items: stretch;",
                   actionButton("go_survey", 
                               tags$span(
@@ -478,10 +503,9 @@ project_setup_ui <- fluidPage(
   )
 )
 
-
-# ------------------------------------------------------------------------------
-# Define UI for CSV Upload Page (Student Survey Data)
-# ------------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# CSV Upload Page UI
+#---------------------------------------------------------------------------
 csv_upload_ui <- fluidPage(
   custom_styles,
 
@@ -507,6 +531,7 @@ csv_upload_ui <- fluidPage(
               p("Upload the CSV file containing student preferences", style = "color: #666;")
           ),
           
+          # File upload section
           div(style = "text-align: center; margin-bottom: 25px;",
               div(style = "display: inline-block; text-align: left; width: 100%; max-width: 500px;",
                   div(style = "font-weight: 500; margin-bottom: 10px;", "Choose CSV File"),
@@ -534,6 +559,7 @@ csv_upload_ui <- fluidPage(
           
           hr(),
           
+          # Info section
           div(style = "margin-top: 2rem;",
               h4("Required Data Format", style = "color: var(--primary); margin-bottom: 1rem;"),
               p("Please ensure your CSV file contains the following columns:"),
@@ -568,9 +594,9 @@ csv_upload_ui <- fluidPage(
   )
 )
 
-# ------------------------------------------------------------------------------
-# Define UI for the Result Page
-# ------------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# Results Page UI
+#---------------------------------------------------------------------------
 result_ui <- fluidPage(
   custom_styles,
   div(class = "container", style = "max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;",
@@ -709,12 +735,6 @@ result_ui <- fluidPage(
               ),
               # Conditional UI display based on edit mode
               conditionalPanel(
-                condition = "input.toggle_edit_mode % 2 == 0", # Even clicks = normal mode
-                div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
-                    tableOutput("allocation_table")
-                )
-              ),
-              conditionalPanel(
                 condition = "input.toggle_edit_mode % 2 == 1", # Odd clicks = edit mode
                 div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
                     DT::dataTableOutput("editable_allocation_table")
@@ -747,9 +767,13 @@ result_ui <- fluidPage(
   )
 )
 
-# ------------------------------------------------------------------------------
+#===========================================================================
+# 3. MAIN UI ASSEMBLY
+#===========================================================================
+
+#---------------------------------------------------------------------------
 # Define the dynamic UI output
-# ------------------------------------------------------------------------------
+#---------------------------------------------------------------------------
 ui <- fluidPage(
   # Include required libraries
   shinyjs::useShinyjs(),
@@ -775,5 +799,4 @@ ui <- fluidPage(
   ),
   uiOutput("main_ui")
 )
-
 
