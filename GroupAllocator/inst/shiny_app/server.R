@@ -657,14 +657,16 @@ observeEvent(input$select_solution, {
   library(DT)
   
   # Toggle edit mode
-   observeEvent(input$toggle_edit_mode, {
+  observeEvent(input$toggle_edit_mode, {
     params$edit_mode <- !params$edit_mode
     
     if (params$edit_mode) {
-      # When entering edit mode, store the original assignments and score
+      # When entering edit mode, store the original assignments
       params$edited_assignments <- params$final_assignments
-      params$original_preference_score <- params$preference_score
-      message("Starting edit mode with original score: ", params$original_preference_score)
+      # Calculate the original score using the SAME function
+      params$original_preference_score <- calculate_preference_score(params$final_assignments)
+      params$edited_preference_score <- params$original_preference_score
+      message("ENTERING EDIT MODE - Original score: ", params$original_preference_score)
     } else {
       # When exiting edit mode, update the final assignments with edited version
       if (!is.null(params$edited_assignments)) {
