@@ -87,10 +87,10 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
   #---------------------------------------------------------------------------
   
   # Initialize lists to store results
-  solver_results <- list()
-  assignments_list <- list()
-  objective_values <- c()
-  solutions <- list()
+  all_solver_results <- list()
+  all_assignments <- list()
+  all_objective_values <- c()
+  all_solutions <- list()  # To store solution variables
   
   # Create the base MIP model (this will be reused with modifications)
   base_model <- MIPModel() %>%
@@ -147,9 +147,15 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     ) %>%
     
-    # Add slack to represent empty spots in subteams
+    # Add slack to represent empty spots in activated subteams
     add_constraint(
-      sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam,
+      sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) + slack[t, j, s] == b_subteam * Z[t, j],
+      t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
+    ) %>%
+
+    # Force slack to be 0 for non-activated teams
+    add_constraint(
+      slack[t, j, s] <= b_subteam * Z[t, j],
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     ) %>%
     
@@ -165,19 +171,29 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
       t = 1:n_topics, j = 1:x_topic_teams
     ) %>%
     
-    # (7) Relaxed subteam threshold
+    # (6) Relaxed subteam threshold
     add_constraint(
       sum_expr(group_size[g] * A[g, t, j, s], g = 1:n_groups) >= Z[t, j],
       t = 1:n_topics, j = 1:x_topic_teams, s = 1:n_subteams
     )
+
+    # Add constraint to prioritize filling j=1 before activating j=2 for the same topic
+    for (t in 1:n_topics) {
+      for (j in 2:x_topic_teams) {
+        base_model <- base_model %>% add_constraint(
+          Z[t, j] <= Z[t, j-1],
+          t = t, j = j
+        )
+      }
+    }
   
   #---------------------------------------------------------------------------
-  # Find Optimal Solution (First Solution)
+  # Find Many Possible Solutions
   #---------------------------------------------------------------------------
   
+  # First, find the optimal solution
   message("Finding optimal solution...")
   
-  # Solve with no additional constraints to get the optimal solution
   result <- tryCatch({
     solve_model(
       base_model,
@@ -192,56 +208,51 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
     return(list(status = "error", error_message = e$message))
   })
   
-  # Check if a feasible solution was found
+  # Check if optimal solution was found
   if (!result$status %in% c("optimal", "relaxed", "integer optimal", "success", "time limit exceeded")) {
     stop("Could not find any feasible solution. Please check your data and constraints.")
   }
   
   # Get the optimal objective value
-  optimal_obj_val <- tryCatch({
-    objective_value(result)
-  }, error = function(e) {
-    message("Error getting objective value: ", e$message)
-    stop("Could not extract objective value from optimal solution.")
-  })
-  
+  optimal_obj_val <- objective_value(result)
   message("Optimal solution found with objective value: ", optimal_obj_val)
   
-  # Process the optimal solution
-  solver_results[[1]] <- result
-  objective_values[1] <- optimal_obj_val
-  
-  # Extract and store the optimal solution variables
+  # Store the first solution
+  solution_idx <- 1
   solution_A <- get_solution(result, A[g, t, j, s])
-  solutions[[1]] <- solution_A
+  all_solver_results[[solution_idx]] <- result
+  all_solutions[[solution_idx]] <- solution_A
+  all_objective_values[solution_idx] <- optimal_obj_val
   
-  # Process the solution assignments
+  # Process the optimal solution assignments
   optimal_assignments <- process_solution(solution_A, survey_data, topics, valid_subteams, 
-                                         group_size, objective_values[1], 1, pref_array)
+                                         group_size, optimal_obj_val, solution_idx, pref_array)
+  all_assignments[[solution_idx]] <- optimal_assignments
   
-  # Store the assignments
-  assignments_list[[1]] <- optimal_assignments
-  
-  #---------------------------------------------------------------------------
-  # Find Additional Solutions (2 to k_solutions)
-  #---------------------------------------------------------------------------
-  
-  # Calculate the minimum acceptable score (based on the gap)
+  # Set a minimum acceptable score for alternatives
   min_acceptable_score <- optimal_obj_val * (1 - score_gap_percent/100)
   message("Will accept solutions with scores above: ", min_acceptable_score)
   
-  # Step 2: Find additional solutions using integer cuts
-  # We'll add a constraint to exclude known solutions, but we won't enforce
-  # a minimum difference - just get the next best solution
-  for (sol_idx in 2:k_solutions) {
-    message(paste("Finding solution", sol_idx, "of", k_solutions))
+  # Set maximum number of attempts to find solutions
+  max_attempts <- min(k_solutions * 3, 20)  # Cap at 20 to prevent excessive computation
+  
+  # Try to find more solutions (we'll try to find more than k, then select the best k)
+  found_solutions <- 1
+  for (attempt in 1:max_attempts) {
+    # If we already have enough solutions, stop
+    if (found_solutions >= 2*k_solutions) {
+      message("Found enough potential solutions (", found_solutions, "). Stopping search.")
+      break
+    }
     
-    # Start with the base model
+    message(paste("Finding additional solution - attempt", attempt))
+    
+    # Create a new model that excludes all previous solutions
     model <- base_model
     
     # Add constraints to exclude all previous solutions
-    for (prev_sol in 1:(sol_idx-1)) {
-      prev_A <- solutions[[prev_sol]]
+    for (prev_sol_idx in 1:found_solutions) {
+      prev_A <- all_solutions[[prev_sol_idx]]
       
       # Find which variables were 1 in the previous solution
       active_vars <- prev_A %>% 
@@ -254,7 +265,6 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
       }
       
       # Add an integer cut constraint
-      # Sum of all previous 1's + sum of all previous 0's must be less than total
       model <- model %>%
         add_constraint(
           sum_expr(A[active_vars$g[i], active_vars$t[i], active_vars$j[i], active_vars$s[i]],
@@ -262,7 +272,7 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
         )
     }
     
-    # Add a constraint to enforce minimum score
+    # Add minimum score constraint
     model <- model %>%
       add_constraint(
         sum_expr(pref_array[g, t, s] * A[g, t, j, s],
@@ -289,7 +299,7 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
     
     # Check if a feasible solution was found
     if (!result$status %in% c("optimal", "relaxed", "integer optimal", "success", "time limit exceeded")) {
-      message(paste("Could not find solution", sol_idx, "- stopping at", sol_idx-1, "solutions"))
+      message("Could not find more solutions. Stopping search.")
       break
     }
     
@@ -301,53 +311,72 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
       next
     })
     
-    message(paste("Solution", sol_idx, "objective value:", obj_val))
+    message(paste("Found solution with objective value:", obj_val))
     
-    # Store the result
-    solver_results[[sol_idx]] <- result
-    objective_values[sol_idx] <- obj_val
-    
-    # Extract the solution variables
+    # Store this solution
+    found_solutions <- found_solutions + 1
     solution_A <- get_solution(result, A[g, t, j, s])
-    solutions[[sol_idx]] <- solution_A
+    all_solver_results[[found_solutions]] <- result
+    all_solutions[[found_solutions]] <- solution_A
+    all_objective_values[found_solutions] <- obj_val
     
-    # Process the solution assignments (scores are calculated inside process_solution)
+    # Process the solution assignments
     solution_assignments <- process_solution(solution_A, survey_data, topics, valid_subteams, 
-                                           group_size, obj_val, sol_idx)
-
-    # Store the assignments
-    assignments_list[[sol_idx]] <- solution_assignments
+                                           group_size, obj_val, found_solutions, pref_array)
+    all_assignments[[found_solutions]] <- solution_assignments
   }
   
   #---------------------------------------------------------------------------
-  # Finalize Results and Return
+  # Select Top-K Solutions by Score
   #---------------------------------------------------------------------------
   
   # Remove any NULL entries
-  valid_indices <- which(!sapply(assignments_list, is.null))
+  valid_indices <- which(!sapply(all_assignments, is.null))
   
   if (length(valid_indices) == 0) {
     stop("No valid solutions were found. Please check your data and parameters.")
   }
   
-  assignments_list <- assignments_list[valid_indices]
-  solver_results <- solver_results[valid_indices]
-  objective_values <- objective_values[valid_indices]
+  message("Found ", length(valid_indices), " valid solutions.")
+  
+  # Keep only valid solutions
+  filtered_assignments <- all_assignments[valid_indices]
+  filtered_objective_values <- all_objective_values[valid_indices]
+  filtered_solver_results <- all_solver_results[valid_indices]
+  
+  # Sort solutions by score (highest first)
+  sorted_indices <- order(filtered_objective_values, decreasing = TRUE)
+  
+  # Take only the top k solutions (or all if fewer than k)
+  k_actual <- min(k_solutions, length(sorted_indices))
+  top_k_indices <- sorted_indices[1:k_actual]
+  
+  message("Returning top ", k_actual, " solutions by score.")
+  
+  # Selected solutions for return
+  assignments_list <- filtered_assignments[top_k_indices]
+  objective_values <- filtered_objective_values[top_k_indices]
+  solver_results <- filtered_solver_results[top_k_indices]
+  
+  # Fix solution numbers to be sequential (1, 2, 3, etc.)
+  # This is important because the UI expects solutions to be numbered from 1
+  for (i in 1:length(assignments_list)) {
+    if (!is.null(assignments_list[[i]])) {
+      assignments_list[[i]]$solution_number <- i
+    }
+  }
   
   # Calculate score differences from best solution
   best_score <- max(objective_values)
   score_diffs <- best_score - objective_values
   
-  message("Found", length(valid_indices), "valid solutions out of", k_solutions, "requested")
-  message("Best solution score:", best_score)
-  
-  # Return results
+  # Return results 
   list(
     solver_results = solver_results,
     assignments_list = assignments_list,
     objective_values = objective_values,
     score_diffs = score_diffs,
-    best_solution_index = which.max(objective_values)
+    best_solution_index = which.max(objective_values)  # Always 1 since we sorted
   )
 }
 
@@ -410,6 +439,7 @@ process_solution <- function(solution_A, survey_data, topics, valid_subteams,
       subteam = subteam_val,
       solution_number = solution_number,
       solution_score = objective_value,
+      group_id = g_val,
       stringsAsFactors = FALSE
     )
   })

@@ -329,6 +329,30 @@ custom_styles <- tags$head(
     .validation-message.success {
       background-color: var(--success);
     }
+
+    /* Group styling */
+    .group-odd {
+      background-color: rgba(240, 240, 240, 0.5) !important;
+    }
+
+    .group-even {
+      background-color: rgba(255, 255, 255, 0.7) !important;
+    }
+
+    /* Highlight when hovering over rows of the same group */
+    .dataTables_wrapper .dataTable tr:hover {
+      background-color: rgba(52, 152, 219, 0.2) !important;
+    }
+
+    /* Add a subtle left border to indicate group */
+    .dataTables_wrapper .dataTable tr.group-odd td:first-child {
+      border-left: 3px solid rgba(26, 188, 156, 0.5);
+    }
+
+    .dataTables_wrapper .dataTable tr.group-even td:first-child {
+      border-left: 3px solid rgba(52, 152, 219, 0.5);
+    }
+
   "))
 )
 
@@ -682,6 +706,14 @@ result_ui <- fluidPage(
           # Solution comparison cards
           uiOutput("solution_comparison"),
           
+          # Solution differences panel
+          div(
+            id = "differences-panel",
+            style = "margin-top: 15px; background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid var(--secondary);",
+            h5("Key Differences from Best Solution", style = "margin-top: 0; color: var(--primary);"),
+            uiOutput("solution_differences")
+          ),
+
           # Navigation controls
           div(style = "display: flex; justify-content: center; gap: 15px; margin-top: 20px;",
               actionButton("prev_solution", 
@@ -721,7 +753,27 @@ result_ui <- fluidPage(
               # Conditionally show score comparison
               uiOutput("score_comparison_text")
           ),
-          
+
+          # Solution metrics section
+          div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); margin-bottom: 20px;",
+              h4("Solution Metrics", style = "margin-top: 0; color: var(--primary);"),
+              
+              div(style = "display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;",
+                  div(
+                    h5("Team Distribution", style = "margin: 0; font-weight: 500;"),
+                    textOutput("teams_formed")
+                  ),
+                  div(
+                    h5("Student Satisfaction", style = "margin: 0; font-weight: 500;"),
+                    textOutput("pref_satisfaction")
+                  ),
+                  div(
+                    h5("Topic Coverage", style = "margin: 0; font-weight: 500;"),
+                    textOutput("topic_coverage")
+                  )
+              )
+          ),
+
           # Modified table container with editing capability
           div(style = "overflow-x: auto; margin-bottom: 20px;",
               # Add a toggle button for manual edit mode
@@ -752,7 +804,14 @@ result_ui <- fluidPage(
                         textOutput("manual_edit_score_impact")
                     )
                 )
-              )
+              ),
+
+              conditionalPanel(
+                condition = "input.toggle_edit_mode % 2 == 0", # Even clicks = view mode (including 0)
+                div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
+                    DT::dataTableOutput("allocation_table")
+                )
+              ),
           ),
           
           div(style = "text-align: center;",

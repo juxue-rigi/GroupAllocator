@@ -1,0 +1,9 @@
+Student_ID ##1,Student_ID ##2,Student_ID ##3,Student_ID ##4,First Choice (Topic),Second Choice (Topic),Third Choice (Topic),Fourth Choice (Topic),First Choice (Subteam),Second Choice (Subteam),Third Choice (Subteam),Fourth Choice (Subteam)
+Student 1,Student 2,Student 3,Student 4,Topic A,,,,Subteam A,,,
+Student 5,Student 6,Student 7,Student 8,Topic A,,,,Subteam B,,,
+Student 9,Student 10,Student 11,Student 12,Topic B,,,,Subteam A,,,
+Student 13,Student 14,Student 15,Student 16,Topic B,,,,Subteam B,,,
+Student 17,Student 18,Student 19,Student 20,Topic C,,,,Subteam A,,,
+Student 21,Student 22,Student 23,Student 24,Topic C,,,,Subteam B,,,
+Student 25,Student 26,Student 27,Student 28,Topic D,,,,Subteam A,,,
+Student 29,Student 30,Student 31,Student 32,Topic D,,,,Subteam B,,,
