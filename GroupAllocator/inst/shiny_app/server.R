@@ -1,8 +1,9 @@
 #===========================================================================
 # TABLE OF CONTENTS
 #===========================================================================
+# 0. Initial Source Files
+#
 # 1. INITIALIZATION AND SETUP
-#    - Initial Source Files
 #    - Helper Functions
 #      - %||% (null-coalescing operator)
 #      - get_cached_data()
@@ -35,11 +36,18 @@
 
 
 
-
 # Access Initial Source Files
-source("../../R/optimization_model.R")
 source("../../R/import_data.R")
+source("../../R/optimization_model.R")
+
+source("../../R/import_data_diversity.R")
+source("../../R/optimization_model_diversity.R")
+
+source("../../R/import_data_subteam_skills.R")
+source("../../R/optimization_model_subteam_skills.R")
+
 source("../../R/manual_adjustments.R")
+
 
 server <- function(input, output, session) {
   #===========================================================================
@@ -62,6 +70,9 @@ server <- function(input, output, session) {
   # Store user information
   user_name <- reactiveVal("")
   course_name <- reactiveVal("")
+
+  # Store the selected model type
+  model_type <- reactiveVal("1")  # Default to model 1
   
   # Main reactive values for application state
   params <- reactiveValues(
@@ -224,12 +235,39 @@ server <- function(input, output, session) {
   
   # Render dynamic UI based on current page
   output$main_ui <- renderUI({
+    current <- current_page()
+    
+    if (current == "login") {
+      return(login_ui)
+    } else if (current == "project_setup") {
+      # Return the appropriate setup page based on selected model
+      model_num <- as.numeric(model_type())
+      
+      return(switch(
+        model_num,
+        "1" = project_setup_model1_ui,
+        "2" = project_setup_model2_ui,  # Use model 2 UI for diversity model
+        "3" = project_setup_model3_ui,
+        "4" = project_setup_model4_ui
+      ))
+    } else if (current == "csv_upload") {
+      return(csv_upload_ui)
+    } else if (current == "result") {
+      return(result_ui)
+    }
+  })
+
+
+  # Update model display text on pages after login
+  output$model_display <- renderText({
+    model_num <- as.numeric(model_type())
+    
     switch(
-      current_page(),
-      "login"         = login_ui,
-      "project_setup" = project_setup_ui,
-      "csv_upload"    = csv_upload_ui,
-      "result"        = result_ui
+      model_num,
+      "1" = "Model: Subteam Considerations",
+      "2" = "Model: Diversity Optimization",  
+      "3" = "Model: Subteam + Skills",
+      "4" = "Model: No Subteam + Skills"
     )
   })
 
@@ -253,10 +291,19 @@ server <- function(input, output, session) {
   output$topic_coverage <- renderText({
     req(params$final_assignments)
     
-    # Extract topics from project teams
-    topics <- unique(sapply(strsplit(params$final_assignments$project_team, "_team"), function(x) x[1]))
-    
-    paste(length(topics), "topics covered")
+    # Check if project_team is a character column
+    if ("project_team" %in% names(params$final_assignments) && 
+        is.character(params$final_assignments$project_team)) {
+      # Extract topics from project teams
+      topics <- unique(sapply(
+        strsplit(params$final_assignments$project_team, "_team"), 
+        function(x) if(length(x) > 0) x[1] else NA
+      ))
+      topics <- topics[!is.na(topics)]
+      paste(length(topics), "topics covered")
+    } else {
+      "Topics data not available"
+    }
   })
   
   #---------------------------------------------------------------------------
@@ -347,6 +394,239 @@ server <- function(input, output, session) {
       return(paste0("Score Impact: ", round(score_diff, 2), " points (Reduced)"))
     } else {
       return("Score Impact: No change")
+    }
+  })
+
+  output$model_specific_params_ui <- renderUI({
+    model_num <- as.numeric(model_type())
+    
+    if(model_num == 1) {
+      # Model 1: Basic Subteam Model
+      tagList(
+        numericInput("new_c_team", "Team Size", value = params$c_team, min = 1),
+        numericInput("new_b_subteam", "Sub-team Size", value = params$b_subteam, min = 1),
+        numericInput("new_x_topic_teams", "Max Teams per Topic", value = params$x_topic_teams, min = 1),
+        numericInput("new_k_solutions", "Number of Solutions", value = params$k_solutions, min = 1, max = 10)
+      )
+    } else if(model_num == 2) {
+      # Model 2: Diversity Optimization
+      tagList(
+        numericInput("new_c_team", "Team Size", value = params$c_team, min = 2),
+        numericInput("new_k_solutions", "Number of Solutions", value = params$k_solutions, min = 1, max = 10)
+      )
+    } else if(model_num == 3) {
+      # Model 3: Subteam + Skills
+      tagList(
+        numericInput("new_c_team", "Team Size", value = params$c_team, min = 1),
+        numericInput("new_b_subteam", "Sub-team Size", value = params$b_subteam, min = 1),
+        numericInput("new_x_topic_teams", "Max Teams per Topic", value = params$x_topic_teams, min = 1),
+        numericInput("new_skills_weight", "Skills Matching Weight", value = params$skills_weight, min = 1, max = 10),
+        numericInput("new_k_solutions", "Number of Solutions", value = params$k_solutions, min = 1, max = 10)
+      )
+    } else {
+      # Model 4: No Subteam + Skills
+      tagList(
+        numericInput("new_c_team", "Team Size", value = params$c_team, min = 2),
+        numericInput("new_x_topic_teams", "Max Teams per Topic", value = params$x_topic_teams, min = 1),
+        numericInput("new_skills_weight", "Skills Matching Weight", value = params$skills_weight, min = 1, max = 10),
+        numericInput("new_min_skill_level", "Minimum Skill Level", value = params$min_skill_level %||% 3, min = 1, max = 10),
+        numericInput("new_k_solutions", "Number of Solutions", value = params$k_solutions, min = 1, max = 10)
+      )
+    }
+  })
+
+  # CSV format instructions output based on selected model
+  output$csv_format_instructions <- renderUI({
+    model_num <- as.numeric(model_type())
+    
+    if(model_num == 1) {
+      # Model 1: Basic Subteam Model
+      HTML('
+        <p>Your CSV should include:</p>
+        <ul>
+          <li><strong>Student_ID columns</strong> (one for each student in a group)</li>
+          <li><strong>Topic preference columns</strong> (First Choice, Second Choice, etc.)</li>
+          <li><strong>Subteam role preference columns</strong></li>
+        </ul>
+        <div style="overflow-x: auto; margin-top: 10px;">
+          <table style="width:100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
+            <tr style="background-color: #2c3e50; color: white;">
+              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #1</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #2</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #3</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #4</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Topic)</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Second Choice (Topic)</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Subteam)</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Second Choice (Subteam)</th>
+            </tr>
+          </table>
+        </div>
+      ')
+    } else if(model_num == 2) {
+      # Model 2: Diversity Optimization
+      HTML('
+        <p>Your CSV should include:</p>
+        <ul>
+          <li><strong>student_id column</strong> (one for each individual student)</li>
+          <li><strong>diversity_category columns</strong> (e.g., major, nationality, year, gender)</li>
+        </ul>
+        <div style="overflow-x: auto; margin-top: 10px;">
+          <table style="width:100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
+            <tr style="background-color: #2c3e50; color: white;">
+              <th style="padding: 6px; border: 1px solid #ddd;">student_id</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_major</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_nationality</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_year</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_gender</th>
+            </tr>
+          </table>
+        </div>
+      ')
+    } else if(model_num == 3) {
+      # Model 3: Subteam + Skills
+      HTML('
+        <p>Your CSV should include:</p>
+        <ul>
+          <li><strong>Student_ID columns</strong> (one for each student in a group)</li>
+          <li><strong>Topic preference columns</strong></li>
+          <li><strong>Subteam preference columns</strong></li>
+          <li><strong>Skill level columns</strong> (numeric ratings)</li>
+        </ul>
+        <div style="overflow-x: auto; margin-top: 10px;">
+          <table style="width:100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
+            <tr style="background-color: #2c3e50; color: white;">
+              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #1</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #2</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Topic)</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Subteam)</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Skill 1 Level</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Skill 2 Level</th>
+            </tr>
+          </table>
+        </div>
+      ')
+    } else {
+      # Model 4: No Subteam + Skills
+      HTML('
+        <p>Your CSV should include:</p>
+        <ul>
+          <li><strong>Student_ID column</strong> (one for each individual student)</li>
+          <li><strong>Topic preference columns</strong></li>
+          <li><strong>Skill level columns</strong> (numeric ratings)</li>
+        </ul>
+        <div style="overflow-x: auto; margin-top: 10px;">
+          <table style="width:100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
+            <tr style="background-color: #2c3e50; color: white;">
+              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Topic)</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Second Choice (Topic)</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Programming Skill</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">Design Skill</th>
+            </tr>
+          </table>
+        </div>
+      ')
+    }
+  })
+
+  # Output for model-specific metrics
+  output$model_specific_metric <- renderUI({
+    req(params$final_assignments)
+    
+    model_num <- as.numeric(model_type())
+    
+    if(model_num == 2) {
+      # DIVERSITY MODEL
+      # Get diversity metrics from solution
+      diversity_value <- NULL
+      
+      if(!is.null(params$all_diversity_scores) && !is.null(params$current_solution_idx)) {
+        diversity_scores <- params$all_diversity_scores[[params$current_solution_idx]]
+        if(!is.null(diversity_scores$overall)) {
+          # Average of all diversity metrics
+          diversity_value <- mean(unlist(diversity_scores$overall), na.rm = TRUE)
+        }
+      }
+      
+      if(is.null(diversity_value)) {
+        # Fallback if no diversity value is available - count unique categories per team
+        teams <- unique(params$final_assignments$project_team)
+        diversity_cols <- grep("diversity_category", names(params$final_assignments), value = TRUE, ignore.case = TRUE)
+        
+        if(length(diversity_cols) > 0) {
+          # Calculate average diversity across teams
+          team_diversities <- sapply(teams, function(team) {
+            team_members <- params$final_assignments[params$final_assignments$project_team == team, ]
+            mean(sapply(diversity_cols, function(col) {
+              length(unique(team_members[[col]]))
+            }))
+          })
+          diversity_value <- mean(team_diversities, na.rm = TRUE)
+        } else {
+          # If no diversity columns found
+          diversity_value <- NA
+        }
+      }
+      
+      # Return UI element for diversity metric
+      div(
+        h5("Team Diversity", style = "margin: 0; font-weight: 500;"),
+        if(!is.na(diversity_value)) {
+          div(
+            style = paste0("color: ", ifelse(diversity_value > 0.6, "var(--success)", 
+                                          ifelse(diversity_value > 0.3, "var(--warning)", "var(--danger)")), 
+                          "; font-weight: 500;"),
+            paste0(round(diversity_value * 100), "% diverse")
+          )
+        } else {
+          div("Diversity metrics not available")
+        }
+      )
+      
+    } else if(model_num == 3 || model_num == 4) {
+      # SKILLS MODEL
+      # Calculate skills balance
+      skill_cols <- grep("skill", names(params$final_assignments), value = TRUE, ignore.case = TRUE)
+      
+      if(length(skill_cols) > 0) {
+        # Get team skill balance
+        teams <- unique(params$final_assignments$project_team)
+        
+        # Calculate skill coverage (percent of teams with all required skills)
+        skill_coverage <- sapply(teams, function(team) {
+          team_members <- params$final_assignments[params$final_assignments$project_team == team, ]
+          all_skills_covered <- all(sapply(skill_cols, function(skill_col) {
+            any(team_members[[skill_col]] >= params$min_skill_level %||% 3, na.rm = TRUE)
+          }))
+          return(all_skills_covered)
+        })
+        
+        coverage_pct <- sum(skill_coverage) / length(teams) * 100
+        
+        # Return UI element for skills metric
+        div(
+          h5("Skills Coverage", style = "margin: 0; font-weight: 500;"),
+          div(
+            style = paste0("color: ", ifelse(coverage_pct > 80, "var(--success)", 
+                                          ifelse(coverage_pct > 50, "var(--warning)", "var(--danger)")), 
+                        "; font-weight: 500;"),
+            paste0(round(coverage_pct), "% teams with all skills")
+          )
+        )
+      } else {
+        # If no skill columns found
+        div(
+          h5("Skills Coverage", style = "margin: 0; font-weight: 500;"),
+          div("Skills data not available")
+        )
+      }
+    } else {
+      # Model 1 or other models
+      div(
+        h5("Team Balance", style = "margin: 0; font-weight: 500;"),
+        textOutput("team_balance")
+      )
     }
   })
   
@@ -608,18 +888,42 @@ server <- function(input, output, session) {
       options = list(
         pageLength = 25,
         dom = 'ftip',
-        order = list(list(5, 'asc'), list(1, 'asc'), list(2, 'asc')), # Sort by group_id first, then project team and subteam
+        order = list(list(1, 'asc'), list(2, 'asc')), # Sort by group_id first, then project team and subteam
         rowCallback = JS("
           function(row, data, index) {
-            // Use the group_id (column 5) to add a specific class
-            var groupId = data[5];
-            $(row).addClass('group-' + groupId);
+            // Create a group identifier from project_team and subteam
+            var groupId = data[1] + '_' + data[2]; // Combine project_team and subteam
             
-            // Add alternating color based on group_id
-            if (groupId % 2 == 0) {
+            // Store this as a data attribute for styling
+            $(row).attr('data-group', groupId);
+            
+            // Apply styling based on project_team
+            var projectTeam = data[1];
+            if(projectTeam.includes('Topic 1')) {
+              $(row).addClass('group-even');
+            } else if(projectTeam.includes('Topic 2')) {
+              $(row).addClass('group-odd');
+            } else if(projectTeam.includes('Topic 3')) {
+              $(row).addClass('group-even');
+            } else if(projectTeam.includes('Topic 4')) {
+              $(row).addClass('group-odd');
+            } else if(projectTeam.includes('Topic 5')) {
               $(row).addClass('group-even');
             } else {
-              $(row).addClass('group-odd');
+              // Alternate for any other topics
+              if (index % 2 === 0) {
+                $(row).addClass('group-even');
+              } else {
+                $(row).addClass('group-odd');
+              }
+            }
+            
+            // Additional styling for subteams
+            var subteam = data[2];
+            if(subteam === 'A') {
+              $(row).find('td:eq(2)').css('border-left', '3px solid rgba(26, 188, 156, 0.7)');
+            } else if(subteam === 'B') {
+              $(row).find('td:eq(2)').css('border-left', '3px solid rgba(52, 152, 219, 0.7)');
             }
           }
         "),
@@ -881,6 +1185,7 @@ server <- function(input, output, session) {
     if (input$username != "" && input$course != "") {
       user_name(input$username)
       course_name(input$course)
+      model_type(input$selected_model)  # Store selected model
       current_page("project_setup")
     } else {
       showModal(modalDialog(
@@ -909,30 +1214,87 @@ server <- function(input, output, session) {
   
   # 5) Project Setup -> CSV Upload
   observeEvent(input$next_step, {
-    # Validate inputs first
-    if (is.na(input$c_team) || is.na(input$b_subteam) || is.na(input$x_topic_teams) || is.na(input$k_solutions)) {
+    # Get model number
+    model_num <- as.numeric(model_type())
+    
+    # Check which parameters need validation based on model
+    valid_inputs <- TRUE
+    error_msg <- ""
+    
+    if(model_num == 1) {
+      # Model 1: Check subteam-related parameters
+      if (is.na(input$c_team) || is.na(input$b_subteam) || is.na(input$x_topic_teams) || is.na(input$k_solutions)) {
+        valid_inputs <- FALSE
+        error_msg <- "Please enter valid values for all fields."
+      }
+    } else if(model_num == 2) {
+      # Model 2: Check only team size and k_solutions
+      if (is.na(input$c_team) || is.na(input$k_solutions)) {
+        valid_inputs <- FALSE
+        error_msg <- "Please enter valid values for team size and number of solutions."
+      }
+    } else if(model_num == 3 || model_num == 4) {
+      # Models 3 & 4: Check all skill-related parameters
+      if (is.na(input$c_team) || is.na(input$b_subteam) || is.na(input$x_topic_teams) || 
+          is.na(input$skills_weight) || is.na(input$k_solutions)) {
+        valid_inputs <- FALSE
+        error_msg <- "Please enter valid values for all fields."
+      }
+    }
+    
+    # Show error if invalid inputs
+    if(!valid_inputs) {
       showModal(modalDialog(
         title = "Error",
-        "Please enter valid values for all fields.",
+        error_msg,
         easyClose = TRUE,
         footer = NULL
       ))
       return()
     }
     
-    # Save numeric inputs to user_inputs.csv
-    # so read_project_data() can read them
-    data_to_save <- data.frame(
-      c_team        = input$c_team,
-      b_subteam     = input$b_subteam,
-      x_topic_teams = input$x_topic_teams
-    )
-    
-    # Store values in reactive values for later use
-    params$c_team <- as.numeric(input$c_team)
-    params$b_subteam <- as.numeric(input$b_subteam)
-    params$x_topic_teams <- as.numeric(input$x_topic_teams)
-    params$k_solutions <- as.numeric(input$k_solutions)
+    # Save parameters based on model type
+    if(model_num == 1) {
+      data_to_save <- data.frame(
+        c_team        = input$c_team,
+        b_subteam     = input$b_subteam,
+        x_topic_teams = input$x_topic_teams
+      )
+      
+      # Store values in reactive values
+      params$c_team <- as.numeric(input$c_team)
+      params$b_subteam <- as.numeric(input$b_subteam)
+      params$x_topic_teams <- as.numeric(input$x_topic_teams)
+      params$k_solutions <- as.numeric(input$k_solutions)
+      
+    } else if(model_num == 2) {
+      # For Model 2 (Diversity), we only need c_team
+      data_to_save <- data.frame(
+        c_team          = input$c_team,
+        x_topic_teams   = 1,  # Default value not needed for diversity model
+        diversity_weight = 0.7  # Default diversity weight
+      )
+      
+      # Store values in reactive values
+      params$c_team <- as.numeric(input$c_team)
+      params$k_solutions <- as.numeric(input$k_solutions)
+      
+    } else {
+      # Models 3 & 4
+      data_to_save <- data.frame(
+        c_team        = input$c_team,
+        b_subteam     = input$b_subteam,
+        x_topic_teams = input$x_topic_teams,
+        skills_weight = input$skills_weight
+      )
+      
+      # Store values in reactive values
+      params$c_team <- as.numeric(input$c_team)
+      params$b_subteam <- as.numeric(input$b_subteam)
+      params$x_topic_teams <- as.numeric(input$x_topic_teams)
+      params$skills_weight <- as.numeric(input$skills_weight)
+      params$k_solutions <- as.numeric(input$k_solutions)
+    }
     
     # Save to CSV
     tryCatch({
@@ -941,7 +1303,7 @@ server <- function(input, output, session) {
         file = "user_inputs.csv",
         sep = ",",
         row.names = FALSE,
-        col.names = FALSE,  # Changed to FALSE as expected by read_project_data
+        col.names = FALSE,  # As expected by read_project_data
         append = FALSE
       )
     }, error = function(e) {
@@ -972,6 +1334,11 @@ server <- function(input, output, session) {
       updateNumericInput(session, "b_subteam", value = params$b_subteam)
       updateNumericInput(session, "x_topic_teams", value = params$x_topic_teams)
     }
+  })
+
+  # Update model type when selection changes
+  observeEvent(input$selected_model, {
+    model_type(input$selected_model)
   })
   
   #===========================================================================
@@ -1027,68 +1394,212 @@ server <- function(input, output, session) {
     # Show progress indicator
     withProgress(message = "Running optimization...", {
       
-      # Ensure parameters are numeric before calling optimization
-      c_team <- as.numeric(params$c_team)
-      b_subteam <- as.numeric(params$b_subteam)
-      x_topic_teams <- as.numeric(params$x_topic_teams)
-      k_solutions <- as.numeric(params$k_solutions)
+      # Get the model type
+      model_num <- as.numeric(model_type())
       
-      # Print debug info to console
-      message("Optimization parameters:")
-      message("c_team = ", c_team, " (", class(c_team), ")")
-      message("b_subteam = ", b_subteam, " (", class(b_subteam), ")")
-      message("x_topic_teams = ", x_topic_teams, " (", class(x_topic_teams), ")")
-      message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
-      
-      # Run the optimization with error handling
-      tryCatch({
-        # Pass the path to the uploaded CSV file
-        res <- run_multi_solution_optimization("survey_data.csv",
-                                               params$k_solutions,
-                                               5.0  # Default score gap of 5%
-        )
+      # Run different optimization based on model type
+      if(model_num == 2) {
+        # MODEL 2: DIVERSITY OPTIMIZATION
         
-        # Check if we have valid results
-        if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
-          # Store the results
-          params$all_assignments <- res$assignments_list
-          params$objective_values <- res$objective_values
-          params$score_diffs <- res$score_diffs
-          params$current_solution_idx <- res$best_solution_index
-          params$final_assignments <- res$assignments_list[[res$best_solution_index]]
-          params$preference_score <- res$objective_values[res$best_solution_index]
-          params$previous_score <- NULL  # No previous score for first run
-          params$error_message <- NULL
+        # Ensure parameters are numeric
+        c_team <- as.numeric(params$c_team)
+        k_solutions <- as.numeric(params$k_solutions)
+        
+        # Print debug info to console
+        message("Diversity Optimization parameters:")
+        message("c_team = ", c_team, " (", class(c_team), ")")
+        message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
+        
+        # Run the diversity optimization with error handling
+        tryCatch({
+          # Use the diversity optimization function
+          res <- run_diversity_optimization(
+            "survey_data.csv",
+            team_size = c_team,
+            k_solutions = k_solutions,
+            score_gap_percent = 5.0
+          )
           
-          # Debug output
-          message("Best solution index: ", res$best_solution_index)
-          message("Row count in final_assignments: ", nrow(params$final_assignments))
-          message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
-          
-          if (!"individual_score" %in% names(params$final_assignments)) {
-            # This is a fallback in case the process_solution function didn't add individual scores
-            data_list <- read_data("survey_data.csv")
-            params$final_assignments <- calculate_individual_scores(
-              params$final_assignments,
-              data_list$survey_data,
-              data_list$topics,
-              data_list$valid_subteams,
-              data_list$pref_array
-            )
+          # Check if we have valid results
+          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+            # Store the results
+            params$all_assignments <- res$assignments_list
+            params$objective_values <- res$objective_values
+            params$score_diffs <- res$objective_values[res$best_solution_index] - res$objective_values
+            params$current_solution_idx <- res$best_solution_index
+            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+            params$preference_score <- res$objective_values[res$best_solution_index]
+            params$previous_score <- NULL  # No previous score for first run
+            params$error_message <- NULL
+            
+            # Debug output
+            message("Best solution index: ", res$best_solution_index)
+            message("Row count in final_assignments: ", nrow(params$final_assignments))
+            message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
+            
+            # Go to results page
+            current_page("result")
+          } else {
+            showModal(modalDialog(
+              title = "Optimization Error",
+              "The diversity optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+              easyClose = TRUE
+            ))
           }
-          
-          # Go to results page
-          current_page("result")
-        } else {
+        }, error = function(e) {
           showModal(modalDialog(
             title = "Optimization Error",
-            "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+            paste("Failed to run diversity optimization:", e$message),
             easyClose = TRUE
           ))
-        }
-      })
+        })
+        
+      } else if(model_num == 3) {
+        # MODEL 3: SUBTEAM + SKILLS
+        
+        # Ensure parameters are numeric
+        c_team <- as.numeric(params$c_team)
+        b_subteam <- as.numeric(params$b_subteam)
+        x_topic_teams <- as.numeric(params$x_topic_teams)
+        skills_weight <- as.numeric(params$skills_weight)
+        k_solutions <- as.numeric(params$k_solutions)
+        
+        # Debug info
+        message("Subteam + Skills Optimization parameters:")
+        message("c_team = ", c_team, " (", class(c_team), ")")
+        message("b_subteam = ", b_subteam, " (", class(b_subteam), ")")
+        message("x_topic_teams = ", x_topic_teams, " (", class(x_topic_teams), ")")
+        message("skills_weight = ", skills_weight, " (", class(skills_weight), ")")
+        message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
+        
+        # Run the subteam + skills optimization
+        tryCatch({
+          # Use the specific function for Model 3
+          res <- run_multi_solution_optimization_subteam_skills(
+            "survey_data.csv",
+            k_solutions,
+            5.0  # Default score gap of 5%
+          )
+          
+          # Check if we have valid results
+          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+            # Store the results
+            params$all_assignments <- res$assignments_list
+            params$objective_values <- res$objective_values
+            params$score_diffs <- res$score_diffs
+            params$current_solution_idx <- res$best_solution_index
+            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+            params$preference_score <- res$objective_values[res$best_solution_index]
+            params$previous_score <- NULL  # No previous score for first run
+            params$error_message <- NULL
+            
+            # Debug output
+            message("Best solution index: ", res$best_solution_index)
+            message("Row count in final_assignments: ", nrow(params$final_assignments))
+            message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
+            
+            if (!"individual_score" %in% names(params$final_assignments)) {
+              # This is a fallback in case the process_solution function didn't add individual scores
+              data_list <- read_data_subteam_skills("survey_data.csv")
+              params$final_assignments <- calculate_individual_scores(
+                params$final_assignments,
+                data_list$survey_data,
+                data_list$topics,
+                data_list$valid_subteams,
+                data_list$pref_array
+              )
+            }
+            
+            # Go to results page
+            current_page("result")
+          } else {
+            showModal(modalDialog(
+              title = "Optimization Error",
+              "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+              easyClose = TRUE
+            ))
+          }
+        }, error = function(e) {
+          showModal(modalDialog(
+            title = "Optimization Error", 
+            paste("Failed to generate allocation:", e$message),
+            easyClose = TRUE
+          ))
+        })
+      } else {
+        # OTHER MODELS (1, 4)
+        
+        # Ensure parameters are numeric before calling optimization
+        c_team <- as.numeric(params$c_team)
+        b_subteam <- as.numeric(params$b_subteam)
+        x_topic_teams <- as.numeric(params$x_topic_teams)
+        k_solutions <- as.numeric(params$k_solutions)
+        
+        # Debug info
+        message("Original Optimization parameters:")
+        message("c_team = ", c_team, " (", class(c_team), ")")
+        message("b_subteam = ", b_subteam, " (", class(b_subteam), ")")
+        message("x_topic_teams = ", x_topic_teams, " (", class(x_topic_teams), ")")
+        message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
+        
+        # Run the original optimization
+        tryCatch({
+          # Pass the path to the uploaded CSV file
+          res <- run_multi_solution_optimization(
+            "survey_data.csv",
+            params$k_solutions,
+            5.0  # Default score gap of 5%
+          )
+          
+          # Check if we have valid results
+          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+            # Store the results
+            params$all_assignments <- res$assignments_list
+            params$objective_values <- res$objective_values
+            params$score_diffs <- res$score_diffs
+            params$current_solution_idx <- res$best_solution_index
+            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+            params$preference_score <- res$objective_values[res$best_solution_index]
+            params$previous_score <- NULL  # No previous score for first run
+            params$error_message <- NULL
+            
+            # Debug output
+            message("Best solution index: ", res$best_solution_index)
+            message("Row count in final_assignments: ", nrow(params$final_assignments))
+            message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
+            
+            if (!"individual_score" %in% names(params$final_assignments)) {
+              # This is a fallback in case the process_solution function didn't add individual scores
+              data_list <- read_data("survey_data.csv")
+              params$final_assignments <- calculate_individual_scores(
+                params$final_assignments,
+                data_list$survey_data,
+                data_list$topics,
+                data_list$valid_subteams,
+                data_list$pref_array
+              )
+            }
+            
+            # Go to results page
+            current_page("result")
+          } else {
+            showModal(modalDialog(
+              title = "Optimization Error",
+              "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+              easyClose = TRUE
+            ))
+          }
+        }, error = function(e) {
+          showModal(modalDialog(
+            title = "Optimization Error", 
+            paste("Failed to generate allocation:", e$message),
+            easyClose = TRUE
+          ))
+        })
+      }
     })
   })
+  
   
   #---------------------------------------------------------------------------
   # Solution Navigation
@@ -1122,7 +1633,23 @@ server <- function(input, output, session) {
   # Solution card click handler
   observeEvent(input$select_solution, {
     req(params$all_assignments, input$select_solution)
-    
+  
+    model_num <- as.numeric(model_type())
+  
+    # Use the appropriate read_data function based on model
+    data_list <- if(model_num == 2) {
+      tryCatch({
+        read_data_diversity("survey_data.csv")
+      }, error = function(e) {
+        message("Error with diversity model: ", e$message)
+        # Fall back to standard data reader
+        read_data("survey_data.csv")
+      })
+    } else if(model_num == 3 || model_num == 4) {
+      read_data_subteam_skills("survey_data.csv")
+    } else {
+      read_data("survey_data.csv")
+    }
     sol_idx <- input$select_solution
     if (sol_idx >= 1 && sol_idx <= length(params$all_assignments)) {
       params$current_solution_idx <- sol_idx
@@ -1161,40 +1688,147 @@ server <- function(input, output, session) {
   
   # Run model again with new parameters
   observeEvent(input$run_again, {
-    # Validate inputs
-    params$c_team <- as.numeric(input$new_c_team)
-    params$b_subteam <- as.numeric(input$new_b_subteam)
-    params$x_topic_teams <- as.numeric(input$new_x_topic_teams)
+    # Get the model type
+    model_num <- as.numeric(model_type())
     
-    # Log for debugging
-    message("New parameters for re-run:")
-    message("c_team = ", params$c_team, " (", class(params$c_team), ")")
-    message("b_subteam = ", params$b_subteam, " (", class(params$b_subteam), ")")
-    message("x_topic_teams = ", params$x_topic_teams, " (", class(params$x_topic_teams), ")")
+    # Store the current score as previous before running again
+    params$previous_score <- params$preference_score
     
-    if (is.na(input$new_c_team) || is.na(input$new_b_subteam) || is.na(input$new_x_topic_teams)) {
-      showModal(modalDialog(
-        title = "Error",
-        "Please enter valid values for all fields.",
-        easyClose = TRUE,
-        footer = NULL
-      ))
-      return()
+    # Different parameter handling based on model type
+    if(model_num == 1) {
+      # MODEL 1: BASIC SUBTEAM MODEL
+      # Validate inputs
+      if (is.na(input$new_c_team) || is.na(input$new_b_subteam) || is.na(input$new_x_topic_teams)) {
+        showModal(modalDialog(
+          title = "Error",
+          "Please enter valid values for all fields.",
+          easyClose = TRUE,
+          footer = NULL
+        ))
+        return()
+      }
+      
+      # Update reactive values
+      params$c_team <- as.numeric(input$new_c_team)
+      params$b_subteam <- as.numeric(input$new_b_subteam)
+      params$x_topic_teams <- as.numeric(input$new_x_topic_teams)
+      
+      # Save to CSV
+      data_to_save <- data.frame(
+        c_team        = input$new_c_team,
+        b_subteam     = input$new_b_subteam,
+        x_topic_teams = input$new_x_topic_teams
+      )
+      
+      # Log for debugging
+      message("Updated parameters for model 1:")
+      message("c_team = ", params$c_team)
+      message("b_subteam = ", params$b_subteam)
+      message("x_topic_teams = ", params$x_topic_teams)
+      
+    } else if(model_num == 2) {
+      # MODEL 2: DIVERSITY OPTIMIZATION
+      # Validate inputs
+      if (is.na(input$new_c_team) || is.na(input$new_k_solutions)) {
+        showModal(modalDialog(
+          title = "Error",
+          "Please enter valid values for team size and number of solutions.",
+          easyClose = TRUE,
+          footer = NULL
+        ))
+        return()
+      }
+      
+      # Update reactive values
+      params$c_team <- as.numeric(input$new_c_team)
+      params$k_solutions <- as.numeric(input$new_k_solutions)
+      
+      # Save to CSV for compatibility with read_data function
+      data_to_save <- data.frame(
+        c_team          = input$new_c_team,
+        x_topic_teams   = 1,  # Default for diversity model
+        diversity_weight = 0.7  # Default diversity weight
+      )
+      
+      # Log for debugging
+      message("Updated parameters for model 2 (Diversity):")
+      message("c_team = ", params$c_team)
+      message("k_solutions = ", params$k_solutions)
+      
+    } else if(model_num == 3) {
+      # MODEL 3: SUBTEAM + SKILLS
+      # Validate inputs
+      if (is.na(input$new_c_team) || is.na(input$new_b_subteam) || 
+          is.na(input$new_x_topic_teams) || is.na(input$new_skills_weight) || 
+          is.na(input$new_k_solutions)) {
+        showModal(modalDialog(
+          title = "Error",
+          "Please enter valid values for all fields.",
+          easyClose = TRUE,
+          footer = NULL
+        ))
+        return()
+      }
+      
+      # Update reactive values
+      params$c_team <- as.numeric(input$new_c_team)
+      params$b_subteam <- as.numeric(input$new_b_subteam)
+      params$x_topic_teams <- as.numeric(input$new_x_topic_teams)
+      params$skills_weight <- as.numeric(input$new_skills_weight)
+      params$k_solutions <- as.numeric(input$new_k_solutions)
+      
+      # Save to CSV
+      data_to_save <- data.frame(
+        c_team        = input$new_c_team,
+        b_subteam     = input$new_b_subteam,
+        x_topic_teams = input$new_x_topic_teams,
+        skills_weight = input$new_skills_weight
+      )
+      
+      # Log for debugging
+      message("Updated parameters for model 3 (Subteam + Skills):")
+      message("c_team = ", params$c_team)
+      message("b_subteam = ", params$b_subteam)
+      message("x_topic_teams = ", params$x_topic_teams)
+      message("skills_weight = ", params$skills_weight)
+      message("k_solutions = ", params$k_solutions)
+      
+    } else if(model_num == 4) {
+      # MODEL 4: NO SUBTEAM + SKILLS
+      # Validate inputs
+      if (is.na(input$new_c_team) || is.na(input$new_x_topic_teams) || 
+          is.na(input$new_skills_weight) || is.na(input$new_k_solutions)) {
+        showModal(modalDialog(
+          title = "Error",
+          "Please enter valid values for all fields.",
+          easyClose = TRUE,
+          footer = NULL
+        ))
+        return()
+      }
+      
+      # Update reactive values
+      params$c_team <- as.numeric(input$new_c_team)
+      params$x_topic_teams <- as.numeric(input$new_x_topic_teams)
+      params$skills_weight <- as.numeric(input$new_skills_weight)
+      params$k_solutions <- as.numeric(input$new_k_solutions)
+      
+      # Save to CSV
+      data_to_save <- data.frame(
+        c_team        = input$new_c_team,
+        x_topic_teams = input$new_x_topic_teams,
+        skills_weight = input$new_skills_weight
+      )
+      
+      # Log for debugging
+      message("Updated parameters for model 4 (No Subteam + Skills):")
+      message("c_team = ", params$c_team)
+      message("x_topic_teams = ", params$x_topic_teams)
+      message("skills_weight = ", params$skills_weight)
+      message("k_solutions = ", params$k_solutions)
     }
     
-    # Save new parameters
-    data_to_save <- data.frame(
-      c_team        = input$new_c_team,
-      b_subteam     = input$new_b_subteam,
-      x_topic_teams = input$new_x_topic_teams
-    )
-    
-    # Update reactive values
-    params$c_team <- as.numeric(input$new_c_team)
-    params$b_subteam <- as.numeric(input$new_b_subteam)
-    params$x_topic_teams <- as.numeric(input$new_x_topic_teams)
-    
-    # Save to CSV
+    # Save parameters to CSV (common for all models)
     tryCatch({
       write.table(
         data_to_save,
@@ -1214,80 +1848,214 @@ server <- function(input, output, session) {
       return()
     })
     
-    # Store the current score as previous before running again
-    params$previous_score <- params$preference_score
-    
     # Show progress while running optimization
     withProgress(message = "Running optimization with new parameters...", {
-      # Run the optimization with error handling
-      tryCatch({
-        # Pass the path to the uploaded CSV file
-        res <- run_multi_solution_optimization(
-          "survey_data.csv", 
-          params$k_solutions,
-          5.0  # Default score gap of 5%
-        )
-        
-        # Check if we have valid results
-        if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
-          # Store the results
-          params$all_assignments <- res$assignments_list
-          params$objective_values <- res$objective_values
-          params$score_diffs <- res$score_diffs
-          params$current_solution_idx <- res$best_solution_index
-          params$final_assignments <- res$assignments_list[[res$best_solution_index]]
-          params$preference_score <- res$objective_values[res$best_solution_index]
-          params$error_message <- NULL
+      # Run different optimization based on model type
+      if(model_num == 2) {
+        # MODEL 2: DIVERSITY OPTIMIZATION
+        tryCatch({
+          # Use the diversity optimization function with updated parameters
+          res <- run_diversity_optimization(
+            "survey_data.csv", 
+            team_size = params$c_team,
+            k_solutions = params$k_solutions,
+            score_gap_percent = 5.0
+          )
           
-          if (!"individual_score" %in% names(params$final_assignments)) {
-            # This is a fallback in case the process_solution function didn't add individual scores
-            data_list <- read_data("survey_data.csv")
-            params$final_assignments <- calculate_individual_scores(
-              params$final_assignments,
-              data_list$survey_data,
-              data_list$topics,
-              data_list$valid_subteams,
-              data_list$pref_array
-            )
-          }
-          
-          # Hide the parameter panel
-          shinyjs::hide("params_panel")
-          
-          # Show success message with score comparison
-          score_diff <- params$preference_score - params$previous_score
-          score_change_msg <- if(score_diff > 0) {
-            paste("Preference score increased by", round(score_diff, 2), "points!")
-          } else if(score_diff < 0) {
-            paste("Preference score decreased by", round(abs(score_diff), 2), "points.")
+          # Check if we have valid results
+          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+            # Store the results
+            params$all_assignments <- res$assignments_list
+            params$objective_values <- res$objective_values
+            params$score_diffs <- res$score_diffs
+            params$current_solution_idx <- res$best_solution_index
+            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+            params$preference_score <- res$objective_values[res$best_solution_index]
+            params$all_diversity_scores <- res$diversity_scores
+            params$error_message <- NULL
+            
+            # Debug output
+            message("Best solution index: ", res$best_solution_index)
+            message("Row count in final_assignments: ", nrow(params$final_assignments))
+            
+            # Hide the parameter panel
+            shinyjs::hide("params_panel")
+            
+            # Show success message with score comparison
+            score_diff <- params$preference_score - params$previous_score
+            score_change_msg <- if(score_diff > 0) {
+              paste("Diversity score increased by", round(score_diff, 2), "points!")
+            } else if(score_diff < 0) {
+              paste("Diversity score decreased by", round(abs(score_diff), 2), "points.")
+            } else {
+              "Diversity score remained the same."
+            }
+            
+            showModal(modalDialog(
+              title = "Success",
+              HTML(paste(
+                "Diversity optimization ran successfully with new parameters!<br><br>",
+                "<strong>", score_change_msg, "</strong>"
+              )),
+              easyClose = TRUE,
+              footer = modalButton("OK")
+            ))
           } else {
-            "Preference score remained the same."
+            showModal(modalDialog(
+              title = "Optimization Error",
+              "The diversity optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+              easyClose = TRUE
+            ))
           }
-          
+        }, error = function(e) {
+          params$error_message <- e$message
           showModal(modalDialog(
-            title = "Success",
-            HTML(paste(
-              "Model ran successfully with new parameters!<br><br>",
-              "<strong>", score_change_msg, "</strong>"
-            )),
-            easyClose = TRUE,
-            footer = modalButton("OK")
-          ))
-        } else {
-          showModal(modalDialog(
-            title = "Optimization Error",
-            "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+            title = "Diversity Optimization Error",
+            paste("Failed to generate allocation with new parameters:", e$message),
             easyClose = TRUE
           ))
-        }
-      }, error = function(e) {
-        params$error_message <- e$message
-        showModal(modalDialog(
-          title = "Optimization Error",
-          paste("Failed to generate allocation with new parameters:", e$message),
-          easyClose = TRUE
-        ))
-      })
+        })
+      } else if(model_num == 3) {
+        # MODEL 3: SUBTEAM + SKILLS
+        tryCatch({
+          # Use the specific function for Model 3
+          res <- run_multi_solution_optimization_subteam_skills(
+            "survey_data.csv", 
+            params$k_solutions,
+            5.0  # Default score gap of 5%
+          )
+          
+          # Check if we have valid results
+          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+            # Store the results
+            params$all_assignments <- res$assignments_list
+            params$objective_values <- res$objective_values
+            params$score_diffs <- res$score_diffs
+            params$current_solution_idx <- res$best_solution_index
+            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+            params$preference_score <- res$objective_values[res$best_solution_index]
+            params$error_message <- NULL
+            
+            if (!"individual_score" %in% names(params$final_assignments)) {
+              # Add individual scores if needed
+              data_list <- read_data_subteam_skills("survey_data.csv")
+              params$final_assignments <- calculate_individual_scores(
+                params$final_assignments,
+                data_list$survey_data,
+                data_list$topics,
+                data_list$valid_subteams,
+                data_list$pref_array
+              )
+            }
+            
+            # Hide the parameter panel
+            shinyjs::hide("params_panel")
+            
+            # Show success message with score comparison
+            score_diff <- params$preference_score - params$previous_score
+            score_change_msg <- if(score_diff > 0) {
+              paste("Preference score increased by", round(score_diff, 2), "points!")
+            } else if(score_diff < 0) {
+              paste("Preference score decreased by", round(abs(score_diff), 2), "points.")
+            } else {
+              "Preference score remained the same."
+            }
+            
+            showModal(modalDialog(
+              title = "Success",
+              HTML(paste(
+                "Subteam + Skills model ran successfully with new parameters!<br><br>",
+                "<strong>", score_change_msg, "</strong>"
+              )),
+              easyClose = TRUE,
+              footer = modalButton("OK")
+            ))
+          } else {
+            showModal(modalDialog(
+              title = "Optimization Error",
+              "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+              easyClose = TRUE
+            ))
+          }
+        }, error = function(e) {
+          params$error_message <- e$message
+          showModal(modalDialog(
+            title = "Optimization Error",
+            paste("Failed to generate allocation with new parameters:", e$message),
+            easyClose = TRUE
+          ))
+        })
+      } else {
+        # OTHER MODELS (1, 4)
+        tryCatch({
+          # Run the original optimization for other models
+          res <- run_multi_solution_optimization(
+            "survey_data.csv", 
+            params$k_solutions,
+            5.0  # Default score gap of 5%
+          )
+          
+          # Check if we have valid results
+          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+            # Store the results
+            params$all_assignments <- res$assignments_list
+            params$objective_values <- res$objective_values
+            params$score_diffs <- res$score_diffs
+            params$current_solution_idx <- res$best_solution_index
+            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+            params$preference_score <- res$objective_values[res$best_solution_index]
+            params$error_message <- NULL
+            
+            if (!"individual_score" %in% names(params$final_assignments)) {
+              # Add individual scores if needed
+              data_list <- read_data("survey_data.csv")
+              params$final_assignments <- calculate_individual_scores(
+                params$final_assignments,
+                data_list$survey_data,
+                data_list$topics,
+                data_list$valid_subteams,
+                data_list$pref_array
+              )
+            }
+            
+            # Hide the parameter panel
+            shinyjs::hide("params_panel")
+            
+            # Show success message with score comparison
+            score_diff <- params$preference_score - params$previous_score
+            score_change_msg <- if(score_diff > 0) {
+              paste("Preference score increased by", round(score_diff, 2), "points!")
+            } else if(score_diff < 0) {
+              paste("Preference score decreased by", round(abs(score_diff), 2), "points.")
+            } else {
+              "Preference score remained the same."
+            }
+            
+            showModal(modalDialog(
+              title = "Success",
+              HTML(paste(
+                "Model ran successfully with new parameters!<br><br>",
+                "<strong>", score_change_msg, "</strong>"
+              )),
+              easyClose = TRUE,
+              footer = modalButton("OK")
+            ))
+          } else {
+            showModal(modalDialog(
+              title = "Optimization Error",
+              "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+              easyClose = TRUE
+            ))
+          }
+        }, error = function(e) {
+          params$error_message <- e$message
+          showModal(modalDialog(
+            title = "Optimization Error",
+            paste("Failed to generate allocation with new parameters:", e$message),
+            easyClose = TRUE
+          ))
+        })
+      }
     })
   })
   
@@ -1444,10 +2212,13 @@ server <- function(input, output, session) {
       
       # Extract topic from project_team
       topic <- tryCatch({
-        parts <- strsplit(new_value, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else new_value
+        if (!is.character(project_team) || is.na(project_team) || project_team == "") {
+          return(NA)
+        }
+        parts <- strsplit(project_team, "_team")[[1]]
+        if (length(parts) > 0) parts[1] else NA
       }, error = function(e) {
-        warning("Invalid project_team format: ", new_value)
+        warning("Invalid project_team format: ", project_team)
         return(NA)
       })
       
