@@ -211,10 +211,11 @@ server <- function(input, output, session) {
       
       # Extract topic from project_team
       topic <- tryCatch({
-        parts <- strsplit(project_team, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else project_team
+        # We need to use new_value, which is the new project team assignment
+        parts <- strsplit(new_value, "_team")[[1]]
+        if (length(parts) > 0) parts[1] else new_value
       }, error = function(e) {
-        warning("Invalid project_team format: ", project_team)
+        warning("Invalid project_team format: ", new_value)
         return(NA)
       })
       
@@ -1111,15 +1112,11 @@ server <- function(input, output, session) {
       ),
       callback = JS("
         table.on('change', 'select.project-team-select', function() {
-          var cell = table.cell($(this).closest('td'));
           var row = table.row($(this).closest('tr')).index();
           var student = $(this).closest('tr').find('td:first').text();
           var newValue = $(this).val();
           
-          // Update the cell value
-          cell.data(newValue).draw();
-          
-          // Send the update to Shiny
+          // Only send the update to Shiny without trying to update the cell directly
           Shiny.setInputValue('project_team_change', {
             student_id: student,
             new_value: newValue,
@@ -1128,15 +1125,11 @@ server <- function(input, output, session) {
         });
         
         table.on('change', 'select.subteam-select', function() {
-          var cell = table.cell($(this).closest('td'));
           var row = table.row($(this).closest('tr')).index();
           var student = $(this).closest('tr').find('td:first').text();
           var newValue = $(this).val();
           
-          // Update the cell value
-          cell.data(newValue).draw();
-          
-          // Send the update to Shiny
+          // Only send the update to Shiny without trying to update the cell directly
           Shiny.setInputValue('subteam_change', {
             student_id: student,
             new_value: newValue,
@@ -2068,6 +2061,13 @@ server <- function(input, output, session) {
       # Extract topics from old and new project teams
       old_topic <- strsplit(old_project_team, "_team")[[1]][1]
       new_topic <- strsplit(new_value, "_team")[[1]][1]
+
+      # Debug information
+      message("Project team change for student: ", student_id)
+      message("Old project team: ", old_project_team)
+      message("New project team: ", new_value)
+      message("Old topic: ", old_topic)
+      message("New topic: ", new_topic)
       
       # Get the group_id for this student
       group_id <- params$edited_assignments$group_id[row_idx]
@@ -2156,13 +2156,14 @@ server <- function(input, output, session) {
       
       # Extract topic from project_team
       topic <- tryCatch({
-        if (!is.character(project_team) || is.na(project_team) || project_team == "") {
+        # We need to use the new_value variable, not project_team
+        if (!is.character(new_value) || is.na(new_value) || new_value == "") {
           return(NA)
         }
-        parts <- strsplit(project_team, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else NA
+        parts <- strsplit(new_value, "_team")[[1]]
+        if (length(parts) > 0) parts[1] else new_value
       }, error = function(e) {
-        warning("Invalid project_team format: ", project_team)
+        warning("Invalid project_team format: ", new_value)
         return(NA)
       })
       
@@ -2196,8 +2197,13 @@ server <- function(input, output, session) {
       }
       
       params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
+      
     }
-  })
+    # Force table redraw
+    session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }")
+    invalidateLater(100, session)
+  }
+)
 
   # Handle confirmation for team change despite group separation
   observeEvent(input$confirm_team_change, {
@@ -2217,6 +2223,7 @@ server <- function(input, output, session) {
     
     # Extract topic from project_team
     topic <- tryCatch({
+      # We need to use the new_value variable here, not project_team
       parts <- strsplit(new_value, "_team")[[1]]
       if (length(parts) > 0) parts[1] else new_value
     }, error = function(e) {
@@ -2255,7 +2262,11 @@ server <- function(input, output, session) {
     
     params$last_score_calc_time <- Sys.time()
     params$pending_change <- NULL  # Clear the pending change
+    # Force table redraw
+    session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }") 
+    invalidateLater(100, session)
     removeModal()
+    
   })
 
   # Handle confirmation for team change despite topic removal
@@ -2276,6 +2287,7 @@ server <- function(input, output, session) {
     
     # Extract topic from project_team
     topic <- tryCatch({
+      # We need to use the new_value variable here, not project_team
       parts <- strsplit(new_value, "_team")[[1]]
       if (length(parts) > 0) parts[1] else new_value
     }, error = function(e) {
@@ -2314,6 +2326,9 @@ server <- function(input, output, session) {
     
     params$last_score_calc_time <- Sys.time()
     params$pending_change <- NULL  # Clear the pending change
+    # Force table redraw
+    session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }")
+    invalidateLater(100, session)
     removeModal()
   })
 
@@ -2396,11 +2411,16 @@ server <- function(input, output, session) {
       
       # Get project team and extract topic
       project_team <- params$edited_assignments$project_team[row_idx]
+
       topic <- tryCatch({
-        parts <- strsplit(project_team, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else project_team
+        # We need to use the new_value variable, not project_team
+        if (!is.character(new_value) || is.na(new_value) || new_value == "") {
+          return(NA)
+        }
+        parts <- strsplit(new_value, "_team")[[1]]
+        if (length(parts) > 0) parts[1] else new_value
       }, error = function(e) {
-        warning("Invalid project_team format: ", project_team)
+        warning("Invalid project_team format: ", new_value)
         return(NA)
       })
       
@@ -2433,7 +2453,9 @@ server <- function(input, output, session) {
       
       params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
     }
-  })
+    invalidateLater(100, session)
+  }
+)
 
   # Handle confirmation for subteam change despite group separation
   observeEvent(input$confirm_subteam_change, {
@@ -2454,10 +2476,14 @@ server <- function(input, output, session) {
     # Get project team and extract topic
     project_team <- params$edited_assignments$project_team[row_idx]
     topic <- tryCatch({
-      parts <- strsplit(project_team, "_team")[[1]]
-      if (length(parts) > 0) parts[1] else project_team
+      # We need to use the new_value variable, not project_team
+      if (!is.character(new_value) || is.na(new_value) || new_value == "") {
+        return(NA)
+      }
+      parts <- strsplit(new_value, "_team")[[1]]
+      if (length(parts) > 0) parts[1] else new_value
     }, error = function(e) {
-      warning("Invalid project_team format: ", project_team)
+      warning("Invalid project_team format: ", new_value)
       return(NA)
     })
     

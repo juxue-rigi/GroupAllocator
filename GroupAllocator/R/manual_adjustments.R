@@ -88,7 +88,13 @@ calculate_individual_scores <- function(assignments, survey_data, topics, valid_
     subteam <- assignments$subteam[i]
     
     # Extract topic from project_team (e.g., "TopicA_team1" -> "TopicA")
-    topic <- strsplit(project_team, "_team")[[1]][1]
+    topic <- tryCatch({
+      parts <- strsplit(project_team, "_team")[[1]]
+      if (length(parts) > 0) parts[1] else project_team
+    }, error = function(e) {
+      warning("Invalid project_team format: ", project_team)
+      return(NA)
+    })
     
     # Find the group in survey data that contains this student_id
     student_cols <- grep("Student_ID", names(survey_data), value = TRUE)
