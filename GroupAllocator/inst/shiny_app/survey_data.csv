@@ -1,9 +1,25 @@
-﻿Student_ID ##1,Student_ID ##2,Student_ID ##3,Student_ID ##4,Rank Topic Preference,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Data
-stu 1,stu 2,stu 3,stu 4,Topic 1_Subteam A;Topic 2_Subteam B;Topic 1_Subteam B;Topic 3_Subteam B;Topic 3_Subteam A;Topic 4_Subteam A;Topic 4_Subteam B;Topic 2_Subteam A;Topic 5_Subteam A;Topic 5_Subteam B;,5,3,4,2,5,3,3,4,2,3,2,3,2,4,2,1,2,3,4,2
-stu 5,stu 6,stu 7,stu 8,Topic 5_Subteam B;Topic 5_Subteam A;Topic 3_Subteam B;Topic 2_Subteam B;Topic 2_Subteam A;Topic 1_Subteam B;Topic 4_Subteam B;Topic 1_Subteam A;Topic 4_Subteam A;Topic 3_Subteam A,1,2,3,2,1,2,4,4,5,4,1,2,3,4,2,5,3,3,4,4
-stu 9,stu 10,stu 11,stu 12,Topic 2_Subteam A;Topic 2_Subteam B;Topic 5_Subteam A;Topic 3_Subteam B;Topic 5_Subteam B;Topic 1_Subteam A;Topic 1_Subteam B;Topic 4_Subteam B;Topic 3_Subteam A;Topic 4_Subteam A,5,4,3,4,2,2,3,2,1,3,3,3,2,4,4,3,4,5,5,1
-stu 13,stu 14,stu 15,stu 16,Topic 2_Subteam B;Topic 4_Subteam A;Topic 3_Subteam A;Topic 3_Subteam B;Topic 5_Subteam A;Topic 1_Subteam B;Topic 4_Subteam B;Topic 5_Subteam B;Topic 1_Subteam A;Topic 2_Subteam A,1,2,1,1,2,3,2,3,2,3,5,3,1,4,2,3,3,3,3,3
-stu 17,stu 18,stu 19,stu 20,Topic 1_Subteam B;Topic 2_Subteam A;Topic 4_Subteam A;Topic 3_Subteam A;Topic 1_Subteam A;Topic 5_Subteam B;Topic 4_Subteam B;Topic 3_Subteam B;Topic 5_Subteam A;Topic 2_Subteam B,2,1,3,4,5,3,4,5,5,1,3,3,2,1,4,2,3,2,3,4
-stu 21,stu 22,,,Topic 5_Subteam B;Topic 5_Subteam A;Topic 2_Subteam B;Topic 3_Subteam B;Topic 2_Subteam A;Topic 4_Subteam A;Topic 3_Subteam A;Topic 1_Subteam B;Topic 1_Subteam A;Topic 4_Subteam B,5,4,4,3,3,3,3,3,3,3,,,,,,,,,,
-stu 23,stu 24,,,Topic 5_Subteam A;Topic 2_Subteam B;Topic 4_Subteam B;Topic 3_Subteam A;Topic 4_Subteam A;Topic 2_Subteam A;Topic 1_Subteam A;Topic 3_Subteam B;Topic 5_Subteam B;Topic 1_Subteam B,1,1,3,4,2,5,5,4,4,5,,,,,,,,,,
-stu 25,,,,Topic 4_Subteam B;Topic 4_Subteam A;Topic 1_Subteam B;Topic 3_Subteam B;Topic 1_Subteam A;Topic 2_Subteam B;Topic 5_Subteam B;Topic 3_Subteam A;Topic 2_Subteam A;Topic 5_Subteam A,1,2,3,2,1,,,,,,,,,,,,,,,
+﻿Student_ID ##1,Diversity_Category ##1,Diversity_Category ##2,Diversity_Category ##3,,,,,,,,
+Student 1,Humanities,Year 2,Female,,,,,,,,
+Student 2,Science,Year 1,Male,,,,,,,,
+Student 3,Computing,Year 3,Female,,,,,,,,
+Student 4,Humanities,Year 4,Male,,,,,,,,
+Student 5,Science,Year 2,Female,,,,,,,,
+Student 6,Computing,Year 1,Male,,,,,,,,
+Student 7,Humanities,Year 3,Female,,,,,,,,
+Student 8,Science,Year 2,Male,,,,,,,,
+Student 9,Computing,Year 2,Female,,,,,,,,
+Student 10,Humanities,Year 1,Female,,,,,,,,
+Student 11,Humanities,Year 3,Male,,,,,,,,
+Student 12,Computing,Year 2,Male,,,,,,,,
+Student 13,Humanities,Year 2,Female,,,,,,,,
+Student 14,Humanities,Year 1,Male,,,,,,,,
+Student 15,Computing,Year 3,Male,,,,,,,,
+Student 16,Humanities,Year 4,Female,,,,,,,,
+Student 17,Science,Year 2,Female,,,,,,,,
+Student 18,Computing,Year 1,Male,,,,,,,,
+Student 19,Humanities,Year 3,Male,,,,,,,,
+Student 20,Science,Year 2,Male,,,,,,,,
+Student 21,Computing,Year 2,Female,,,,,,,,
+Student 22,Humanities,Year 1,Male,,,,,,,,
+Student 23,Humanities,Year 3,Female,,,,,,,,
+Student 24,Humanities,Year 2,Male,,,,,,,,

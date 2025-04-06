@@ -14,7 +14,6 @@
 #    - Dynamic UI Output
 #===========================================================================
 
-
 #===========================================================================
 # 1. THEME AND STYLING
 #===========================================================================
@@ -1247,9 +1246,25 @@ result_ui <- fluidPage(
               # Conditional UI display based on edit mode
               conditionalPanel(
                 condition = "input.toggle_edit_mode % 2 == 1", # Odd clicks = edit mode
+                
+                # Edit mode indicator
+                div(class = "edit-mode-indicator",
+                    tags$i(class = "fa fa-edit"),
+                    div(
+                      h4("Edit Mode Active", style = "margin: 0; color: var(--warning);"),
+                      p("You can now modify student assignments using the dropdowns below.", style = "margin-bottom: 5px;"),
+                      div(id = "score-impact-container", class = "score-impact neutral",
+                          textOutput("score_change_summary")
+                      )
+                    )
+                ),
+                
+                # Editable table
                 div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
                     DT::dataTableOutput("editable_allocation_table")
                 ),
+                
+                # Score impact panel
                 div(style = "margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--warning);",
                     div(style = "display: flex; align-items: center;",
                         tags$i(class = "fa fa-info-circle", style = "color: var(--warning); font-size: 20px; margin-right: 10px;"),
@@ -1262,6 +1277,31 @@ result_ui <- fluidPage(
                     div(style = "margin-top: 10px;",
                         textOutput("manual_edit_score_impact")
                     )
+                ),
+                
+                # Change history panel
+                div(style = "margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--secondary);",
+                    div(style = "display: flex; align-items: center;",
+                        tags$i(class = "fa fa-history", style = "color: var(--secondary); font-size: 20px; margin-right: 10px;"),
+                        div(
+                          h5("Change History", style = "margin: 0; color: var(--dark);"),
+                          p("Recent changes to student assignments:", style = "margin: 0; color: var(--dark);")
+                        )
+                    ),
+                    # Table to show change history
+                    div(style = "margin-top: 10px; max-height: 200px; overflow-y: auto;",
+                        tableOutput("change_history_table")
+                    ),
+                    # Button to undo last change
+                    div(style = "text-align: right; margin-top: 10px;",
+                        actionButton("undo_last_change", 
+                                    tags$span(
+                                      tags$i(class = "fa fa-undo", style = "margin-right: 8px;"), 
+                                      "Undo Last Change"
+                                    ), 
+                                    class = "btn-custom-secondary", 
+                                    style = "font-size: 0.9em;")
+                    )
                 )
               ),
 
@@ -1270,8 +1310,11 @@ result_ui <- fluidPage(
                 div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
                     DT::dataTableOutput("allocation_table")
                 )
-              ),
+              )
           ),
+
+          # Add floating status message div at the end of result_ui
+          div(id = "floating-status", "Score updated"),
           
           div(style = "text-align: center;",
               actionButton("back_to_upload", 
