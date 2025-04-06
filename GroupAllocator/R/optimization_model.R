@@ -27,6 +27,7 @@
 run_multi_solution_optimization <- function(student_data_path = "survey_data.csv", 
                                            k_solutions = 3,
                                            score_gap_percent = 5.0) {
+  
   # Check if required packages are installed
   required_packages <- c("dplyr", "tidyr", "slam", "ompr", "ompr.roi", "ROI.plugin.glpk")
   for (pkg in required_packages) {
@@ -71,16 +72,7 @@ run_multi_solution_optimization <- function(student_data_path = "survey_data.csv
   message("Model parameters:")
   message(sprintf("Team size: %d, Subteam size: %d, Max teams per topic: %d", c_team, b_subteam, x_topic_teams))
   message(sprintf("Number of groups: %d, Number of topics: %d, Number of subteams: %d", n_groups, n_topics, n_subteams))
-  
-  # Calculate total students to help diagnose capacity issues
-  total_students <- sum(group_size)
-  max_possible_teams <- floor(total_students / minCapacity)
-  message(sprintf("Total student count: %d, Minimum capacity: %d, Maximum possible teams: %d", 
-                 total_students, minCapacity, max_possible_teams))
-  
-  # Print topic and subteam counts to verify data
-  message("Topics (", n_topics, "): ", paste(topics, collapse = ", "))
-  message("Subteams (", n_subteams, "): ", paste(valid_subteams, collapse = ", "))
+
   
   #---------------------------------------------------------------------------
   # Base Model Definition

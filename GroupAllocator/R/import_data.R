@@ -35,9 +35,10 @@ process_survey_data <- function(student_data_path) {
   
   df <- read.csv(student_data_path, 
                  stringsAsFactors = FALSE, 
-                 na.strings = c("", "NA"))  # Ensure empty strings are NA
+                 na.strings = c("", "NA"),
+                 check.names = FALSE)  # Keep original column names
   
-  # Log column names for debugging
+  # Print actual column names to debug
   message("Actual column names in dataframe:")
   message(paste(names(df), collapse = ", "))
   
@@ -48,12 +49,15 @@ process_survey_data <- function(student_data_path) {
 # Compute Group Sizes from Survey Data
 #--------------------------------------------------------------
 get_group_size <- function(df) {
-  # Identify columns that contain "Student_ID"
+  # Look for any columns containing "Student_ID" with a more flexible pattern
   group_id_cols <- grep("Student_ID", names(df), value = TRUE)
   
   if (length(group_id_cols) == 0) {
     stop("No columns containing 'Student_ID' found in the survey data.")
   }
+  
+  # Print the exact columns found for debugging
+  message("Student ID columns found: ", paste(group_id_cols, collapse = ", "))
   
   # Compute group size: count non-NA entries per row in these columns
   group_sizes <- rowSums(!is.na(df[group_id_cols]))

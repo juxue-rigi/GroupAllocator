@@ -14,6 +14,7 @@
 #    - Dynamic UI Output
 #===========================================================================
 
+
 #===========================================================================
 # 1. THEME AND STYLING
 #===========================================================================
@@ -439,13 +440,6 @@ login_ui <- fluidPage(
                   tags$small("Example: Project teams where specific technical skills are needed for different roles")
               ),
               
-              # Model 4
-              div(id = "model_4_card", class = "model-card", onclick = "selectModel(4)",
-                  h4("4. No Subteam + Skills Matching"),
-                  p("Creates balanced teams based on skills without predefined subteam roles. Ensures each team has members with complementary skills."),
-                  tags$small("Example: Research teams where varied skill sets are needed but roles are flexible")
-              ),
-              
               # Hidden input to store selected model
               tags$input(id = "selected_model", type = "hidden", value = "1")
           ),
@@ -559,14 +553,41 @@ project_setup_model1_ui <- fluidPage(
           
           # Parameter input form
           div(style = "max-width: 500px; margin: 0 auto;",
-              div(class = "form-group",
-                  numericInput("k_solutions", 
-                              tags$span(
-                                tags$i(class = "fa fa-copy", style = "margin-right: 8px; color: var(--secondary);"), 
-                                "Number of Solutions to Find"
-                              ),
-                              value = 3, min = 1, max = 10)
-              ),
+            div(class = "form-group",
+                numericInput("c_team", 
+                            tags$span(
+                              tags$i(class = "fa fa-users", style = "margin-right: 8px; color: var(--secondary);"), 
+                              "Team Size (total students in project group)"
+                            ),
+                            value = 8, min = 2, max = 20)
+            ),
+            
+            div(class = "form-group",
+                numericInput("b_subteam", 
+                            tags$span(
+                              tags$i(class = "fa fa-user-friends", style = "margin-right: 8px; color: var(--secondary);"), 
+                              "Sub-team Size"
+                            ),
+                            value = 4, min = 1, max = 10)
+            ),
+            
+            div(class = "form-group",
+                numericInput("x_topic_teams", 
+                            tags$span(
+                              tags$i(class = "fa fa-project-diagram", style = "margin-right: 8px; color: var(--secondary);"), 
+                              "Max Teams per Topic"
+                            ),
+                            value = 3, min = 1, max = 10)
+            ),
+            
+            div(class = "form-group",
+                numericInput("k_solutions", 
+                            tags$span(
+                              tags$i(class = "fa fa-copy", style = "margin-right: 8px; color: var(--secondary);"), 
+                              "Number of Solutions to Find"
+                            ),
+                            value = 3, min = 1, max = 10)
+            ),
               
               # Button group
               div(class = "button-group", style = "flex-direction: column; align-items: stretch;",
@@ -864,150 +885,7 @@ project_setup_model3_ui <- fluidPage(
   )
 )
 
-#---------------------------------------------------------------------------
-# Project Setup Page UI - Model 4: No Subteam + Skills Matching
-#---------------------------------------------------------------------------
-project_setup_model4_ui <- fluidPage(
-  custom_styles,
-  div(class = "container", style = "max-width: 1200px; margin: 0 auto; padding: 2rem 1rem;",
-      # Profile section
-      div(class = "profile-section",
-          tags$i(class = "fa fa-user-circle", style = "font-size: 24px; color: var(--primary);"),
-          span(textOutput("profile_name"), style = "font-weight: 500;"),
-          span(style = "flex-grow: 1;"),
-          span(textOutput("course_display"), style = "color: var(--secondary); font-weight: 500;"),
-          span(style = "margin-left: 15px; padding: 4px 8px; background-color: var(--accent); color: white; border-radius: 4px;",
-               "Model: No Subteam + Skills")
-      ),
-      
-      # Title and welcome
-      div(style = "text-align: center; margin-bottom: 3rem;",
-          h1("Project Set-up", class = "page-title"),
-          h3(textOutput("welcome_message"), style = "font-weight: 400; color: var(--dark);")
-      ),
-      
-      # Main content
-      div(class = "card", style = "max-width: 800px; margin: 0 auto;",
-          h3("Enter Team Formation Parameters", style = "text-align: center; margin-bottom: 2rem;"),
-          
-          # Add instruction text for Model 4
-          div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); margin-bottom: 2rem;",
-              h4("Instructions:", style = "color: var(--primary); margin-top: 0;"),
-              p(strong("Create a Microsoft Form to gather student information, topic preferences, and skill levels."),
-                strong("Follow the \"Student Survey Template (Microsoft Form)\"."),
-                style = "margin-bottom: 10px;"),
-              p(strong("Make sure:")),
-              tags$ol(
-                tags$li(strong("Student information starts with \"Student_ID\"."), " Do not change this."),
-                tags$li(strong("Include self-reported skill ratings"), " for each relevant skill (e.g., programming, design, analysis)."),
-                tags$li(strong("Do not change the names of the preference columns."))
-              ),
-              p(strong("After you have collected your data, download the response in CSV format and make sure the CSV is of the following format:"))
-          ),
-          
-          # Example CSV format table for Model 4
-          div(style = "overflow-x: auto; margin-bottom: 2rem;",
-              HTML('<table style="width:100%; border-collapse: collapse; text-align: center;">
-                    <tr style="background-color: #2c3e50; color: white;">
-                      <th style="padding: 8px; border: 1px solid #ddd;">Student_ID</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">First Choice (Topic)</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Second Choice (Topic)</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Third Choice (Topic)</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Programming Skill</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Design Skill</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Analysis Skill</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Other Skill</th>
-                    </tr>
-                    <tr style="background-color: #f9f9f9;">
-                      <td style="padding: 8px; border: 1px solid #ddd;">S112345</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">Topic A</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">Topic B</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">Topic C</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">8</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">5</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">7</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">3</td>
-                    </tr>
-                  </table>')
-          ),
-          
-          # Parameter input form for Model 4
-          div(style = "max-width: 500px; margin: 0 auto;",
-              div(class = "form-group",
-                  numericInput("c_team", 
-                              tags$span(
-                                tags$i(class = "fa fa-users", style = "margin-right: 8px; color: var(--secondary);"), 
-                                "Team Size"
-                              ),
-                              value = 5, min = 2, max = 20)
-              ),
-              
-              div(class = "form-group",
-                  numericInput("x_topic_teams", 
-                              tags$span(
-                                tags$i(class = "fa fa-project-diagram", style = "margin-right: 8px; color: var(--secondary);"), 
-                                "Max Teams per Topic"
-                              ),
-                              value = 3, min = 1, max = 10)
-              ),
-              
-              div(class = "form-group",
-                  numericInput("skills_weight", 
-                              tags$span(
-                                tags$i(class = "fa fa-tools", style = "margin-right: 8px; color: var(--secondary);"), 
-                                "Skills Matching Weight"
-                              ),
-                              value = 5, min = 1, max = 10)
-              ),
-              
-              div(class = "form-group",
-                  numericInput("min_skill_level", 
-                              tags$span(
-                                tags$i(class = "fa fa-level-up-alt", style = "margin-right: 8px; color: var(--secondary);"), 
-                                "Minimum Skill Level per Team"
-                              ),
-                              value = 3, min = 1, max = 10)
-              ),
 
-              div(class = "form-group",
-                  numericInput("k_solutions", 
-                              tags$span(
-                                tags$i(class = "fa fa-copy", style = "margin-right: 8px; color: var(--secondary);"), 
-                                "Number of Solutions to Find"
-                              ),
-                              value = 3, min = 1, max = 10)
-              ),
-              
-              # Button group
-              div(class = "button-group", style = "flex-direction: column; align-items: stretch;",
-                  actionButton("go_survey_model4", 
-                              tags$span(
-                                tags$i(class = "fa fa-file-alt", style = "margin-right: 8px;"), 
-                                "Open Student Survey Template (Microsoft Form)"
-                              ), 
-                              class = "btn-custom-primary", 
-                              style = "width: 100%; margin-bottom: 15px;"),
-                  
-                  actionButton("next_step", 
-                              tags$span(
-                                tags$i(class = "fa fa-arrow-right", style = "margin-right: 8px;"), 
-                                "Next Step"
-                              ), 
-                              class = "btn-custom-success", 
-                              style = "width: 100%; margin-bottom: 15px;"),
-                  
-                  actionButton("back_to_login", 
-                              tags$span(
-                                tags$i(class = "fa fa-arrow-left", style = "margin-right: 8px;"), 
-                                "Back"
-                              ), 
-                              class = "btn-custom-secondary", 
-                              style = "width: 100%;")
-              )
-          )
-      )
-  )
-)
 
 #---------------------------------------------------------------------------
 # CSV Upload Page UI - Common for all models
@@ -1246,25 +1124,9 @@ result_ui <- fluidPage(
               # Conditional UI display based on edit mode
               conditionalPanel(
                 condition = "input.toggle_edit_mode % 2 == 1", # Odd clicks = edit mode
-                
-                # Edit mode indicator
-                div(class = "edit-mode-indicator",
-                    tags$i(class = "fa fa-edit"),
-                    div(
-                      h4("Edit Mode Active", style = "margin: 0; color: var(--warning);"),
-                      p("You can now modify student assignments using the dropdowns below.", style = "margin-bottom: 5px;"),
-                      div(id = "score-impact-container", class = "score-impact neutral",
-                          textOutput("score_change_summary")
-                      )
-                    )
-                ),
-                
-                # Editable table
                 div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
                     DT::dataTableOutput("editable_allocation_table")
                 ),
-                
-                # Score impact panel
                 div(style = "margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--warning);",
                     div(style = "display: flex; align-items: center;",
                         tags$i(class = "fa fa-info-circle", style = "color: var(--warning); font-size: 20px; margin-right: 10px;"),
@@ -1277,31 +1139,6 @@ result_ui <- fluidPage(
                     div(style = "margin-top: 10px;",
                         textOutput("manual_edit_score_impact")
                     )
-                ),
-                
-                # Change history panel
-                div(style = "margin-top: 15px; padding: 10px; background-color: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--secondary);",
-                    div(style = "display: flex; align-items: center;",
-                        tags$i(class = "fa fa-history", style = "color: var(--secondary); font-size: 20px; margin-right: 10px;"),
-                        div(
-                          h5("Change History", style = "margin: 0; color: var(--dark);"),
-                          p("Recent changes to student assignments:", style = "margin: 0; color: var(--dark);")
-                        )
-                    ),
-                    # Table to show change history
-                    div(style = "margin-top: 10px; max-height: 200px; overflow-y: auto;",
-                        tableOutput("change_history_table")
-                    ),
-                    # Button to undo last change
-                    div(style = "text-align: right; margin-top: 10px;",
-                        actionButton("undo_last_change", 
-                                    tags$span(
-                                      tags$i(class = "fa fa-undo", style = "margin-right: 8px;"), 
-                                      "Undo Last Change"
-                                    ), 
-                                    class = "btn-custom-secondary", 
-                                    style = "font-size: 0.9em;")
-                    )
                 )
               ),
 
@@ -1310,11 +1147,8 @@ result_ui <- fluidPage(
                 div(style = "min-width: 80%; max-width: 100%; display: flex; justify-content: center;",
                     DT::dataTableOutput("allocation_table")
                 )
-              )
+              ),
           ),
-
-          # Add floating status message div at the end of result_ui
-          div(id = "floating-status", "Score updated"),
           
           div(style = "text-align: center;",
               actionButton("back_to_upload", 
@@ -1379,8 +1213,7 @@ ui <- fluidPage(
 #       model_num,
 #       "1" = project_setup_model1_ui,
 #       "2" = project_setup_model2_ui,
-#       "3" = project_setup_model3_ui,
-#       "4" = project_setup_model4_ui
+#       "3" = project_setup_model3_ui
 #     ))
 #   } else if (current == "csv_upload") {
 #     return(csv_upload_ui)

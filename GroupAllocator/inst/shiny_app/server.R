@@ -34,18 +34,6 @@
 #    - Score Updates
 #===========================================================================
 
-# Access Initial Source Files
-source("../../R/import_data.R")
-source("../../R/optimization_model.R")
-
-source("../../R/import_data_diversity.R")
-source("../../R/optimization_model_diversity.R")
-
-source("../../R/import_data_subteam_skills.R")
-source("../../R/optimization_model_subteam_skills.R")
-
-source("../../R/manual_adjustments.R")
-
 
 server <- function(input, output, session) {
   #===========================================================================
@@ -100,21 +88,36 @@ server <- function(input, output, session) {
     original_preference_score = NULL, # Original score before edits
     edited_preference_score = NULL,   # Current score after edits
     last_score_calc_time = NULL,      # Timestamp of last score calculation
-    pending_change = NULL,      # Store pending changes that need confirmation
-    
-    # Change tracking for edit mode
-    change_history = data.frame(
-      timestamp = character(),
-      student_id = character(),
-      field = character(),
-      old_value = character(),
-      new_value = character(),
-      score_impact = numeric(),
-      stringsAsFactors = FALSE
-    ),
-    modified_rows = character() # Track which rows have been modified
+    pending_change = NULL  # Store pending changes that need confirmation
   )
 
+
+  # Dynamic source files based on model type
+  observeEvent(model_type(), {
+    req(model_type())
+    model_num <- as.numeric(model_type())
+    
+    # Clear the global environment of any previous model-specific functions
+    rm(list = ls(pattern = "^read_data$|^run_multi_solution_optimization$|^process_survey_data$", envir = .GlobalEnv), envir = .GlobalEnv)
+    
+    # Source files based on selected model
+    if (model_num == 1) {
+      # Just source the files without redefining the functions
+      source("../../R/import_data.R")
+      source("../../R/optimization_model.R")
+      
+    } else if (model_num == 2) {
+      source("../../R/import_data_diversity.R")
+      source("../../R/optimization_model_diversity.R")
+      
+    } else if (model_num == 3) {
+      source("../../R/import_data_subteam_skills.R")
+      source("../../R/optimization_model_subteam_skills.R")
+    }
+    
+    # Always source common adjustments
+    source("../../R/manual_adjustments.R")
+  }, ignoreNULL = TRUE)
   #---------------------------------------------------------------------------
   # Helper Functions
   #---------------------------------------------------------------------------
@@ -257,8 +260,7 @@ server <- function(input, output, session) {
         model_num,
         "1" = project_setup_model1_ui,
         "2" = project_setup_model2_ui,  # Use model 2 UI for diversity model
-        "3" = project_setup_model3_ui,
-        "4" = project_setup_model4_ui
+        "3" = project_setup_model3_ui
       ))
     } else if (current == "csv_upload") {
       return(csv_upload_ui)
@@ -407,50 +409,6 @@ server <- function(input, output, session) {
     }
   })
 
-  # Score change summary for edit mode indicator
-  output$score_change_summary <- renderText({
-    req(params$original_preference_score, params$edited_preference_score)
-    
-    diff <- params$edited_preference_score - params$original_preference_score
-    if(diff > 0) {
-      paste0("Current changes improve score by ", round(diff, 1), " points")
-    } else if(diff < 0) {
-      paste0("Current changes reduce score by ", abs(round(diff, 1)), " points")
-    } else {
-      "No impact on score yet"
-    }
-  })
-
-  # Change history table
-  output$change_history_table <- renderTable({
-    req(params$change_history)
-    if(nrow(params$change_history) == 0) {
-      return(data.frame(Message = "No changes made yet"))
-    }
-    
-    # Sort by most recent changes first
-    history <- params$change_history[order(nrow(params$change_history):1),]
-    # Limit to last 5 changes
-    if(nrow(history) > 5) {
-      history <- history[1:5,]
-    }
-    
-    # Format the score impact with + or - sign
-    history$impact <- ifelse(history$score_impact > 0, 
-                           paste0("+", round(history$score_impact, 1)),
-                           ifelse(history$score_impact < 0,
-                                 paste0(round(history$score_impact, 1)),
-                                 "0"))
-    
-    # Return formatted table
-    history[, c("student_id", "field", "old_value", "new_value", "impact")]
-  }, 
-  colnames = c("Student", "Changed", "From", "To", "Score Impact"),
-  striped = TRUE, 
-  bordered = TRUE,
-  rownames = FALSE,
-  width = "100%")
-
   output$model_specific_params_ui <- renderUI({
     model_num <- as.numeric(model_type())
     
@@ -477,16 +435,7 @@ server <- function(input, output, session) {
         numericInput("new_skills_weight", "Skills Matching Weight", value = params$skills_weight, min = 1, max = 10),
         numericInput("new_k_solutions", "Number of Solutions", value = params$k_solutions, min = 1, max = 10)
       )
-    } else {
-      # Model 4: No Subteam + Skills
-      tagList(
-        numericInput("new_c_team", "Team Size", value = params$c_team, min = 2),
-        numericInput("new_x_topic_teams", "Max Teams per Topic", value = params$x_topic_teams, min = 1),
-        numericInput("new_skills_weight", "Skills Matching Weight", value = params$skills_weight, min = 1, max = 10),
-        numericInput("new_min_skill_level", "Minimum Skill Level", value = params$min_skill_level %||% 3, min = 1, max = 10),
-        numericInput("new_k_solutions", "Number of Solutions", value = params$k_solutions, min = 1, max = 10)
-      )
-    }
+    } 
   })
 
   # CSV format instructions output based on selected model
@@ -560,28 +509,7 @@ server <- function(input, output, session) {
           </table>
         </div>
       ')
-    } else {
-      # Model 4: No Subteam + Skills
-      HTML('
-        <p>Your CSV should include:</p>
-        <ul>
-          <li><strong>Student_ID column</strong> (one for each individual student)</li>
-          <li><strong>Topic preference columns</strong></li>
-          <li><strong>Skill level columns</strong> (numeric ratings)</li>
-        </ul>
-        <div style="overflow-x: auto; margin-top: 10px;">
-          <table style="width:100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
-            <tr style="background-color: #2c3e50; color: white;">
-              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Topic)</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">Second Choice (Topic)</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">Programming Skill</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">Design Skill</th>
-            </tr>
-          </table>
-        </div>
-      ')
-    }
+    } 
   })
 
   # Output for model-specific metrics
@@ -638,7 +566,7 @@ server <- function(input, output, session) {
         }
       )
       
-    } else if(model_num == 3 || model_num == 4) {
+    } else if(model_num == 3) {
       # SKILLS MODEL
       # Calculate skills balance
       skill_cols <- grep("skill", names(params$final_assignments), value = TRUE, ignore.case = TRUE)
@@ -1029,23 +957,10 @@ server <- function(input, output, session) {
           subteam = character(0),
           solution_number = integer(0),
           individual_score = numeric(0),
-          group_id = integer(0),
-          modified_status = character(0)
+          group_id = integer(0)
         )))
       }
     }
-    
-    # Add modified_status column if it doesn't exist
-    if(!"modified_status" %in% names(params$edited_assignments)) {
-      params$edited_assignments$modified_status <- ""
-    }
-    
-    # Update modified status based on tracked rows
-    params$edited_assignments$modified_status <- ifelse(
-      params$edited_assignments$student_id %in% params$modified_rows,
-      "modified",
-      ""
-    )
     
     # Get unique project teams and subteams for dropdowns
     unique_teams <- unique(params$edited_assignments$project_team)
@@ -1102,7 +1017,7 @@ server <- function(input, output, session) {
     
     # Create a datatable with editable cells for project_team and subteam
     DT::datatable(
-      display_data %>% select(student_id, project_team, subteam, solution_number, individual_score, group_id, modified_status),
+      display_data %>% select(student_id, project_team, subteam, solution_number, individual_score, group_id),
       rownames = FALSE,
       colnames = c(
         "Student ID", 
@@ -1110,17 +1025,15 @@ server <- function(input, output, session) {
         "Subteam", 
         "Solution Number", 
         "Preference Score",
-        "Group ID",
-        "Status"  # Hidden status column
+        "Group ID"  # Add column name
       ),
       editable = list(
         target = "cell", 
-        disable = list(columns = c(0, 3, 4, 5, 6)) # Disable editing for non-editable columns
+        disable = list(columns = c(0, 3, 4, 5)) # Disable editing for student_id, solution_number, preference_score, group_id
       ),
       options = list(
         pageLength = 25,
         dom = 'frtip',
-        order = list(list(1, 'asc'), list(2, 'asc')), 
         rowCallback = JS("
           function(row, data, index) {
             // Use the group_id (column 5) to add a specific class
@@ -1132,11 +1045,6 @@ server <- function(input, output, session) {
               $(row).addClass('group-even');
             } else {
               $(row).addClass('group-odd');
-            }
-            
-            // Highlight modified rows
-            if(data[6] === 'modified') {
-              $(row).addClass('row-modified');
             }
           }
         "),
@@ -1198,10 +1106,6 @@ server <- function(input, output, session) {
           list(
             targets = 5, # Hide the group_id column
             visible = FALSE
-          ),
-          list(
-            targets = 6, # Hide the status column
-            visible = FALSE
           )
         )
       ),
@@ -1214,13 +1118,6 @@ server <- function(input, output, session) {
           
           // Update the cell value
           cell.data(newValue).draw();
-          
-          // Add highlight animation class
-          var tr = $(this).closest('tr');
-          tr.removeClass('highlight-recent-change');
-          setTimeout(function() {
-            tr.addClass('highlight-recent-change');
-          }, 10);
           
           // Send the update to Shiny
           Shiny.setInputValue('project_team_change', {
@@ -1238,13 +1135,6 @@ server <- function(input, output, session) {
           
           // Update the cell value
           cell.data(newValue).draw();
-          
-          // Add highlight animation class
-          var tr = $(this).closest('tr');
-          tr.removeClass('highlight-recent-change');
-          setTimeout(function() {
-            tr.addClass('highlight-recent-change');
-          }, 10);
           
           // Send the update to Shiny
           Shiny.setInputValue('subteam_change', {
@@ -1325,7 +1215,7 @@ server <- function(input, output, session) {
         valid_inputs <- FALSE
         error_msg <- "Please enter valid values for team size and number of solutions."
       }
-    } else if(model_num == 3 || model_num == 4) {
+    } else if(model_num == 3) {
       # Models 3 & 4: Check all skill-related parameters
       if (is.na(input$c_team) || is.na(input$b_subteam) || is.na(input$x_topic_teams) || 
           is.na(input$skills_weight) || is.na(input$k_solutions)) {
@@ -1481,217 +1371,212 @@ server <- function(input, output, session) {
   
   # Generate Allocation -> Run Optimization -> Go to Result Page
   observeEvent(input$generate_allocation, {
-    req(params$survey_uploaded)  # Ensure user uploaded CSV
+  req(params$survey_uploaded)  # Ensure user uploaded CSV
+  
+  # Show progress indicator
+  withProgress(message = "Running optimization...", {
     
-    # Show progress indicator
-    withProgress(message = "Running optimization...", {
+    # Get the model type
+    model_num <- as.numeric(model_type())
+
+    if(model_num == 1) {
+      # Ensure parameters are numeric before calling optimization
+      c_team <- as.numeric(params$c_team)
+      b_subteam <- as.numeric(params$b_subteam)
+      x_topic_teams <- as.numeric(params$x_topic_teams)
+      k_solutions <- as.numeric(params$k_solutions)
       
-      # Get the model type
-      model_num <- as.numeric(model_type())
+      # Debug info
+      message("Original Optimization parameters:")
+      message("c_team = ", c_team, " (", class(c_team), ")")
+      message("b_subteam = ", b_subteam, " (", class(b_subteam), ")")
+      message("x_topic_teams = ", x_topic_teams, " (", class(x_topic_teams), ")")
+      message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
       
-      # Run different optimization based on model type
-      if(model_num == 2) {
-        # MODEL 2: DIVERSITY OPTIMIZATION
+      # Run the original optimization
+      tryCatch({
+        # Pass the path to the uploaded CSV file
+        res <- run_multi_solution_optimization(
+          "survey_data.csv",
+          params$k_solutions,
+          5.0  # Default score gap of 5%
+        )
         
-        # Ensure parameters are numeric
-        c_team <- as.numeric(params$c_team)
-        k_solutions <- as.numeric(params$k_solutions)
-        
-        # Print debug info to console
-        message("Diversity Optimization parameters:")
-        message("c_team = ", c_team, " (", class(c_team), ")")
-        message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
-        
-        # Run the diversity optimization with error handling
-        tryCatch({
-          # Use the diversity optimization function
-          res <- run_diversity_optimization(
-            "survey_data.csv",
-            team_size = c_team,
-            k_solutions = k_solutions,
-            score_gap_percent = 5.0
-          )
+        # Check if we have valid results
+        if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+          # Store the results
+          params$all_assignments <- res$assignments_list
+          params$objective_values <- res$objective_values
+          params$score_diffs <- res$score_diffs
+          params$current_solution_idx <- res$best_solution_index
+          params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+          params$preference_score <- res$objective_values[res$best_solution_index]
+          params$previous_score <- NULL  # No previous score for first run
+          params$error_message <- NULL
           
-          # Check if we have valid results
-          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
-            # Store the results
-            params$all_assignments <- res$assignments_list
-            params$objective_values <- res$objective_values
-            params$score_diffs <- res$objective_values[res$best_solution_index] - res$objective_values
-            params$current_solution_idx <- res$best_solution_index
-            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
-            params$preference_score <- res$objective_values[res$best_solution_index]
-            params$previous_score <- NULL  # No previous score for first run
-            params$error_message <- NULL
-            
-            # Debug output
-            message("Best solution index: ", res$best_solution_index)
-            message("Row count in final_assignments: ", nrow(params$final_assignments))
-            message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
-            
-            # Go to results page
-            current_page("result")
-          } else {
-            showModal(modalDialog(
-              title = "Optimization Error",
-              "The diversity optimization completed but didn't produce valid assignments. Please check your data and parameters.",
-              easyClose = TRUE
-            ))
+          # Debug output
+          message("Best solution index: ", res$best_solution_index)
+          message("Row count in final_assignments: ", nrow(params$final_assignments))
+          message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
+          
+          if (!"individual_score" %in% names(params$final_assignments)) {
+            # This is a fallback in case the process_solution function didn't add individual scores
+            data_list <- read_data("survey_data.csv")
+            params$final_assignments <- calculate_individual_scores(
+              params$final_assignments,
+              data_list$survey_data,
+              data_list$topics,
+              data_list$valid_subteams,
+              data_list$pref_array
+            )
           }
-        }, error = function(e) {
+          
+          # Go to results page
+          current_page("result")
+        } else {
           showModal(modalDialog(
             title = "Optimization Error",
-            paste("Failed to run diversity optimization:", e$message),
+            "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
             easyClose = TRUE
           ))
-        })
+        }
+      }, error = function(e) {
+        showModal(modalDialog(
+          title = "Optimization Error", 
+          paste("Failed to generate allocation:", e$message),
+          easyClose = TRUE
+        ))
+      })
+    } else if(model_num == 2) {
+      # MODEL 2: DIVERSITY OPTIMIZATION
+      # Ensure parameters are numeric
+      c_team <- as.numeric(params$c_team)
+      k_solutions <- as.numeric(params$k_solutions)
+      
+      # Print debug info to console
+      message("Diversity Optimization parameters:")
+      message("c_team = ", c_team, " (", class(c_team), ")")
+      message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
+      
+      # Run the diversity optimization with error handling
+      tryCatch({
+        # Use the diversity optimization function
+        res <- run_diversity_optimization(
+          "survey_data.csv",
+          team_size = c_team,
+          k_solutions = k_solutions,
+          score_gap_percent = 5.0
+        )
         
-      } else if(model_num == 3) {
-        # MODEL 3: SUBTEAM + SKILLS
-        
-        # Ensure parameters are numeric
-        c_team <- as.numeric(params$c_team)
-        b_subteam <- as.numeric(params$b_subteam)
-        x_topic_teams <- as.numeric(params$x_topic_teams)
-        skills_weight <- as.numeric(params$skills_weight)
-        k_solutions <- as.numeric(params$k_solutions)
-        
-        # Debug info
-        message("Subteam + Skills Optimization parameters:")
-        message("c_team = ", c_team, " (", class(c_team), ")")
-        message("b_subteam = ", b_subteam, " (", class(b_subteam), ")")
-        message("x_topic_teams = ", x_topic_teams, " (", class(x_topic_teams), ")")
-        message("skills_weight = ", skills_weight, " (", class(skills_weight), ")")
-        message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
-        
-        # Run the subteam + skills optimization
-        tryCatch({
-          # Use the specific function for Model 3
-          res <- run_multi_solution_optimization_subteam_skills(
-            "survey_data.csv",
-            k_solutions,
-            5.0  # Default score gap of 5%
-          )
+        # Check if we have valid results
+        if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+          # Store the results
+          params$all_assignments <- res$assignments_list
+          params$objective_values <- res$objective_values
+          params$score_diffs <- res$objective_values[res$best_solution_index] - res$objective_values
+          params$current_solution_idx <- res$best_solution_index
+          params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+          params$preference_score <- res$objective_values[res$best_solution_index]
+          params$previous_score <- NULL  # No previous score for first run
+          params$error_message <- NULL
           
-          # Check if we have valid results
-          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
-            # Store the results
-            params$all_assignments <- res$assignments_list
-            params$objective_values <- res$objective_values
-            params$score_diffs <- res$score_diffs
-            params$current_solution_idx <- res$best_solution_index
-            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
-            params$preference_score <- res$objective_values[res$best_solution_index]
-            params$previous_score <- NULL  # No previous score for first run
-            params$error_message <- NULL
-            
-            # Debug output
-            message("Best solution index: ", res$best_solution_index)
-            message("Row count in final_assignments: ", nrow(params$final_assignments))
-            message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
-            
-            if (!"individual_score" %in% names(params$final_assignments)) {
-              # This is a fallback in case the process_solution function didn't add individual scores
-              data_list <- read_data_subteam_skills("survey_data.csv")
-              params$final_assignments <- calculate_individual_scores(
-                params$final_assignments,
-                data_list$survey_data,
-                data_list$topics,
-                data_list$valid_subteams,
-                data_list$pref_array
-              )
-            }
-            
-            # Go to results page
-            current_page("result")
-          } else {
-            showModal(modalDialog(
-              title = "Optimization Error",
-              "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
-              easyClose = TRUE
-            ))
-          }
-        }, error = function(e) {
-          showModal(modalDialog(
-            title = "Optimization Error", 
-            paste("Failed to generate allocation:", e$message),
-            easyClose = TRUE
-          ))
-        })
-      } else {
-        # OTHER MODELS (1, 4)
-        
-        # Ensure parameters are numeric before calling optimization
-        c_team <- as.numeric(params$c_team)
-        b_subteam <- as.numeric(params$b_subteam)
-        x_topic_teams <- as.numeric(params$x_topic_teams)
-        k_solutions <- as.numeric(params$k_solutions)
-        
-        # Debug info
-        message("Original Optimization parameters:")
-        message("c_team = ", c_team, " (", class(c_team), ")")
-        message("b_subteam = ", b_subteam, " (", class(b_subteam), ")")
-        message("x_topic_teams = ", x_topic_teams, " (", class(x_topic_teams), ")")
-        message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
-        
-        # Run the original optimization
-        tryCatch({
-          # Pass the path to the uploaded CSV file
-          res <- run_multi_solution_optimization(
-            "survey_data.csv",
-            params$k_solutions,
-            5.0  # Default score gap of 5%
-          )
+          # Debug output
+          message("Best solution index: ", res$best_solution_index)
+          message("Row count in final_assignments: ", nrow(params$final_assignments))
+          message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
           
-          # Check if we have valid results
-          if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
-            # Store the results
-            params$all_assignments <- res$assignments_list
-            params$objective_values <- res$objective_values
-            params$score_diffs <- res$score_diffs
-            params$current_solution_idx <- res$best_solution_index
-            params$final_assignments <- res$assignments_list[[res$best_solution_index]]
-            params$preference_score <- res$objective_values[res$best_solution_index]
-            params$previous_score <- NULL  # No previous score for first run
-            params$error_message <- NULL
-            
-            # Debug output
-            message("Best solution index: ", res$best_solution_index)
-            message("Row count in final_assignments: ", nrow(params$final_assignments))
-            message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
-            
-            if (!"individual_score" %in% names(params$final_assignments)) {
-              # This is a fallback in case the process_solution function didn't add individual scores
-              data_list <- read_data("survey_data.csv")
-              params$final_assignments <- calculate_individual_scores(
-                params$final_assignments,
-                data_list$survey_data,
-                data_list$topics,
-                data_list$valid_subteams,
-                data_list$pref_array
-              )
-            }
-            
-            # Go to results page
-            current_page("result")
-          } else {
-            showModal(modalDialog(
-              title = "Optimization Error",
-              "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
-              easyClose = TRUE
-            ))
-          }
-        }, error = function(e) {
+          # Go to results page
+          current_page("result")
+        } else {
           showModal(modalDialog(
-            title = "Optimization Error", 
-            paste("Failed to generate allocation:", e$message),
+            title = "Optimization Error",
+            "The diversity optimization completed but didn't produce valid assignments. Please check your data and parameters.",
             easyClose = TRUE
           ))
-        })
-      }
-    })
+        }
+      }, error = function(e) {
+        showModal(modalDialog(
+          title = "Optimization Error",
+          paste("Failed to run diversity optimization:", e$message),
+          easyClose = TRUE
+        ))
+      })
+      
+    } else if(model_num == 3) {
+      # MODEL 3: SUBTEAM + SKILLS
+      
+      # Ensure parameters are numeric
+      c_team <- as.numeric(params$c_team)
+      b_subteam <- as.numeric(params$b_subteam)
+      x_topic_teams <- as.numeric(params$x_topic_teams)
+      skills_weight <- as.numeric(params$skills_weight)
+      k_solutions <- as.numeric(params$k_solutions)
+      
+      # Debug info
+      message("Subteam + Skills Optimization parameters:")
+      message("c_team = ", c_team, " (", class(c_team), ")")
+      message("b_subteam = ", b_subteam, " (", class(b_subteam), ")")
+      message("x_topic_teams = ", x_topic_teams, " (", class(x_topic_teams), ")")
+      message("skills_weight = ", skills_weight, " (", class(skills_weight), ")")
+      message("k_solutions = ", k_solutions, " (", class(k_solutions), ")")
+      
+      # Run the subteam + skills optimization
+      tryCatch({
+        # Use the specific function for Model 3
+        res <- run_multi_solution_optimization_subteam_skills(
+          "survey_data.csv",
+          k_solutions,
+          5.0  # Default score gap of 5%
+        )
+        
+        # Check if we have valid results
+        if (length(res$assignments_list) > 0 && !is.null(res$assignments_list[[res$best_solution_index]])) {
+          # Store the results
+          params$all_assignments <- res$assignments_list
+          params$objective_values <- res$objective_values
+          params$score_diffs <- res$score_diffs
+          params$current_solution_idx <- res$best_solution_index
+          params$final_assignments <- res$assignments_list[[res$best_solution_index]]
+          params$preference_score <- res$objective_values[res$best_solution_index]
+          params$previous_score <- NULL  # No previous score for first run
+          params$error_message <- NULL
+          
+          # Debug output
+          message("Best solution index: ", res$best_solution_index)
+          message("Row count in final_assignments: ", nrow(params$final_assignments))
+          message("Columns in final_assignments: ", paste(names(params$final_assignments), collapse=", "))
+          
+          if (!"individual_score" %in% names(params$final_assignments)) {
+            # This is a fallback in case the process_solution function didn't add individual scores
+            data_list <- read_data_subteam_skills("survey_data.csv")
+            params$final_assignments <- calculate_individual_scores(
+              params$final_assignments,
+              data_list$survey_data,
+              data_list$topics,
+              data_list$valid_subteams,
+              data_list$pref_array
+            )
+          }
+          
+          # Go to results page
+          current_page("result")
+        } else {
+          showModal(modalDialog(
+            title = "Optimization Error",
+            "The optimization completed but didn't produce valid assignments. Please check your data and parameters.",
+            easyClose = TRUE
+          ))
+        }
+      }, error = function(e) {
+        showModal(modalDialog(
+          title = "Optimization Error", 
+          paste("Failed to generate allocation:", e$message),
+          easyClose = TRUE
+        ))
+      })
+    }
   })
-  
+})
   
   #---------------------------------------------------------------------------
   # Solution Navigation
@@ -1722,32 +1607,6 @@ server <- function(input, output, session) {
     }
   })
   
-  # Previous solution button
-  observeEvent(input$prev_solution, {
-    req(params$all_assignments)
-    
-    # Calculate previous index (with wrap-around)
-    n_solutions <- length(params$all_assignments)
-    prev_idx <- (params$current_solution_idx - 2) %% n_solutions + 1
-    
-    # Update displayed solution
-    params$current_solution_idx <- prev_idx
-    params$final_assignments <- params$all_assignments[[prev_idx]]
-    params$preference_score <- params$objective_values[prev_idx]
-    
-    # Make sure individual scores are present
-    if (!"individual_score" %in% names(params$final_assignments)) {
-      data_list <- read_data("survey_data.csv")
-      params$final_assignments <- calculate_individual_scores(
-        params$final_assignments,
-        data_list$survey_data,
-        data_list$topics,
-        data_list$valid_subteams,
-        data_list$pref_array
-      )
-    }
-  })
-  
   # Solution card click handler
   observeEvent(input$select_solution, {
     req(params$all_assignments, input$select_solution)
@@ -1763,7 +1622,7 @@ server <- function(input, output, session) {
         # Fall back to standard data reader
         read_data("survey_data.csv")
       })
-    } else if(model_num == 3 || model_num == 4) {
+    } else if(model_num == 3) {
       read_data_subteam_skills("survey_data.csv")
     } else {
       read_data("survey_data.csv")
@@ -1911,39 +1770,6 @@ server <- function(input, output, session) {
       message("skills_weight = ", params$skills_weight)
       message("k_solutions = ", params$k_solutions)
       
-    } else if(model_num == 4) {
-      # MODEL 4: NO SUBTEAM + SKILLS
-      # Validate inputs
-      if (is.na(input$new_c_team) || is.na(input$new_x_topic_teams) || 
-          is.na(input$new_skills_weight) || is.na(input$new_k_solutions)) {
-        showModal(modalDialog(
-          title = "Error",
-          "Please enter valid values for all fields.",
-          easyClose = TRUE,
-          footer = NULL
-        ))
-        return()
-      }
-      
-      # Update reactive values
-      params$c_team <- as.numeric(input$new_c_team)
-      params$x_topic_teams <- as.numeric(input$new_x_topic_teams)
-      params$skills_weight <- as.numeric(input$new_skills_weight)
-      params$k_solutions <- as.numeric(input$new_k_solutions)
-      
-      # Save to CSV
-      data_to_save <- data.frame(
-        c_team        = input$new_c_team,
-        x_topic_teams = input$new_x_topic_teams,
-        skills_weight = input$new_skills_weight
-      )
-      
-      # Log for debugging
-      message("Updated parameters for model 4 (No Subteam + Skills):")
-      message("c_team = ", params$c_team)
-      message("x_topic_teams = ", params$x_topic_teams)
-      message("skills_weight = ", params$skills_weight)
-      message("k_solutions = ", params$k_solutions)
     }
     
     # Save parameters to CSV (common for all models)
@@ -2176,157 +2002,52 @@ server <- function(input, output, session) {
       }
     })
   })
-
-
+  
   #===========================================================================
   # MANUAL EDIT MODE
   #===========================================================================
   
   # Toggle edit mode
   observeEvent(input$toggle_edit_mode, {
-    # Toggle the edit mode flag
-    params$edit_mode <- !params$edit_mode
-    
-    if (params$edit_mode) {
-      # ENTERING EDIT MODE
-      # Store a copy of the original assignments
-      params$edited_assignments <- params$final_assignments
-      
-      # Store the current score AS IS - don't recalculate it
-      params$original_preference_score <- params$preference_score
-      params$edited_preference_score <- params$preference_score
-      
-      # Reset change history and modified rows
-      params$change_history <- data.frame(
-        timestamp = character(),
-        student_id = character(),
-        field = character(),
-        old_value = character(),
-        new_value = character(),
-        score_impact = numeric(),
-        stringsAsFactors = FALSE
-      )
-      params$modified_rows <- character()
-      
-      message("ENTERING EDIT MODE - Original score: ", params$preference_score)
-    } else {
-      # EXITING EDIT MODE
-      if (!is.null(params$edited_assignments)) {
-        # Only recalculate if changes were made
-        if (params$edited_preference_score != params$original_preference_score) {
-          # Use the edited score directly - don't recalculate
-          params$final_assignments <- params$edited_assignments
-          params$preference_score <- params$edited_preference_score
-          
-          # Update the objective values array
-          current_idx <- params$current_solution_idx
-          if (!is.null(current_idx) && current_idx <= length(params$objective_values)) {
-            params$objective_values[current_idx] <- params$edited_preference_score
-            
-            # Recalculate score differences
-            best_score <- max(params$objective_values)
-            params$score_diffs <- best_score - params$objective_values
-          }
-          
-          # Show confirmation message
-          showModal(modalDialog(
-            title = "Changes Applied",
-            HTML(paste0(
-              "<div style='color: ", ifelse(params$edited_preference_score > params$original_preference_score, 
-                                      "var(--success)", "var(--danger)"), ";'>",
-              "<i class='fa fa-", ifelse(params$edited_preference_score > params$original_preference_score, 
-                                 "arrow-up", "arrow-down"), "' style='margin-right: 8px;'></i>",
-              "Score ", ifelse(params$edited_preference_score > params$original_preference_score, 
-                       "increased by ", "decreased by "), 
-              abs(round(params$edited_preference_score - params$original_preference_score, 2)), " points",
-              "</div>",
-              "<p>Your manual changes have been applied to the current solution.</p>"
-            )),
-            easyClose = TRUE,
-            footer = modalButton("OK")
-          ))
-          
-          message("Exiting edit mode with modified score: ", params$edited_preference_score)
-        } else {
-          message("Exiting edit mode without changes - keeping original score: ", params$original_preference_score)
-        }
-      }
-    }
-  })
+  # Toggle the edit mode flag
+  params$edit_mode <- !params$edit_mode
   
-  # Add undo functionality for changes
-  observeEvent(input$undo_last_change, {
-    req(params$change_history, nrow(params$change_history) > 0)
+  if (params$edit_mode) {
+    # ENTERING EDIT MODE
+    # Store a copy of the original assignments
+    params$edited_assignments <- params$final_assignments
     
-    # Get the most recent change
-    last_change <- params$change_history[nrow(params$change_history),]
+    # Store the current score AS IS - don't recalculate it
+    params$original_preference_score <- params$preference_score
+    params$edited_preference_score <- params$preference_score
     
-    # Find student in assignments
-    student_id <- last_change$student_id
-    row_idx <- which(params$edited_assignments$student_id == student_id)
-    
-    if(length(row_idx) > 0) {
-      # Revert the change
-      if(last_change$field == "Project Team") {
-        # Update back to old value
-        params$edited_assignments$project_team[row_idx] <- last_change$old_value
-      } else if(last_change$field == "Subteam") {
-        # Update back to old value
-        params$edited_assignments$subteam[row_idx] <- last_change$old_value
-      }
-      
-      # Update the score
-      params$edited_preference_score <- params$edited_preference_score - last_change$score_impact
-      
-      # Recalculate individual score
-      data_list <- get_cached_data()
-      
-      topic <- tryCatch({
-        parts <- strsplit(params$edited_assignments$project_team[row_idx], "_team")[[1]]
-        if (length(parts) > 0) parts[1] else NA
-      }, error = function(e) {
-        warning("Invalid project_team format")
-        return(NA)
-      })
-      
-      if (!is.na(topic)) {
-        subteam <- params$edited_assignments$subteam[row_idx]
+    message("ENTERING EDIT MODE - Original score: ", params$preference_score)
+  } else {
+    # EXITING EDIT MODE
+    if (!is.null(params$edited_assignments)) {
+      # Only recalculate if changes were made
+      if (params$edited_preference_score != params$original_preference_score) {
+        # Use the edited score directly - don't recalculate
+        params$final_assignments <- params$edited_assignments
+        params$preference_score <- params$edited_preference_score
         
-        # Find group in survey data
-        student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
-        group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
-          row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
-          any(row_data == student_id, na.rm = TRUE)
-        })
-        
-        if (any(group_indices)) {
-          group_idx <- which(group_indices)[1]
-          topic_idx <- match(topic, data_list$topics)
-          subteam_idx <- match(subteam, data_list$valid_subteams)
+        # Update the objective values array
+        current_idx <- params$current_solution_idx
+        if (!is.null(current_idx) && current_idx <= length(params$objective_values)) {
+          params$objective_values[current_idx] <- params$edited_preference_score
           
-          if (!is.na(topic_idx) && !is.na(subteam_idx)) {
-            # Update individual score
-            params$edited_assignments$individual_score[row_idx] <- data_list$pref_array[group_idx, topic_idx, subteam_idx]
-          }
+          # Recalculate score differences
+          best_score <- max(params$objective_values)
+          params$score_diffs <- best_score - params$objective_values
         }
+        
+        message("Exiting edit mode with modified score: ", params$edited_preference_score)
+      } else {
+        message("Exiting edit mode without changes - keeping original score: ", params$original_preference_score)
       }
-      
-      # Remove this change from history
-      params$change_history <- params$change_history[-nrow(params$change_history),]
-      
-      # If no more changes for this student, remove from modified list
-      remaining_changes <- sum(params$change_history$student_id == student_id)
-      if(remaining_changes == 0) {
-        params$modified_rows <- params$modified_rows[params$modified_rows != student_id]
-      }
-      
-      # Show floating status message
-      session$sendCustomMessage(type = "showFloatingStatus", list(
-        text = paste0("Undid last change"),
-        type = "normal"
-      ))
     }
-  })
+  }
+}) 
 
   # ------------------------------------------------------------------------------------------------
   # Handle project team change
@@ -2345,19 +2066,8 @@ server <- function(input, output, session) {
       old_project_team <- params$edited_assignments$project_team[row_idx]
       
       # Extract topics from old and new project teams
-      old_topic <- tryCatch({
-        parts <- strsplit(old_project_team, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else old_project_team
-      }, error = function(e) { 
-        old_project_team 
-      })
-      
-      new_topic <- tryCatch({
-        parts <- strsplit(new_value, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else new_value
-      }, error = function(e) { 
-        new_value 
-      })
+      old_topic <- strsplit(old_project_team, "_team")[[1]][1]
+      new_topic <- strsplit(new_value, "_team")[[1]][1]
       
       # Get the group_id for this student
       group_id <- params$edited_assignments$group_id[row_idx]
@@ -2397,7 +2107,7 @@ server <- function(input, output, session) {
             student_id = student_id,
             new_value = new_value,
             row_idx = row_idx,
-            old_value = old_project_team
+            old_score = params$edited_assignments$individual_score[row_idx]
           )
           return()  # Exit without making the change yet
         }
@@ -2429,7 +2139,7 @@ server <- function(input, output, session) {
           student_id = student_id,
           new_value = new_value,
           row_idx = row_idx,
-          old_value = old_project_team
+          old_score = params$edited_assignments$individual_score[row_idx]
         )
         return()  # Exit without making the change yet
       }
@@ -2446,23 +2156,24 @@ server <- function(input, output, session) {
       
       # Extract topic from project_team
       topic <- tryCatch({
-        parts <- strsplit(new_value, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else new_value
+        if (!is.character(project_team) || is.na(project_team) || project_team == "") {
+          return(NA)
+        }
+        parts <- strsplit(project_team, "_team")[[1]]
+        if (length(parts) > 0) parts[1] else NA
       }, error = function(e) {
-        warning("Invalid project_team format: ", new_value)
+        warning("Invalid project_team format: ", project_team)
         return(NA)
       })
-      
-      # Calculate new score
-      new_score <- old_score  # Default to keeping old score if we can't calculate
       
       if (!is.na(topic)) {
         subteam <- params$edited_assignments$subteam[row_idx]
         
         # Find group in survey data
         student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
-        group_indices <- apply(data_list$survey_data[, student_cols, drop = FALSE], 1, function(row) {
-          any(row == student_id, na.rm = TRUE)
+        group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
+          row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
+          any(row_data == student_id, na.rm = TRUE)
         })
         
         if (any(group_indices)) {
@@ -2476,47 +2187,19 @@ server <- function(input, output, session) {
             
             # Update individual score
             params$edited_assignments$individual_score[row_idx] <- new_score
+            
+            # Update the edited total score (subtract old, add new)
+            params$edited_preference_score <- params$edited_preference_score - old_score + new_score
+            message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, ", new total: ", params$edited_preference_score)
           }
         }
       }
-      
-      # Update the edited total score
-      score_impact <- new_score - old_score
-      params$edited_preference_score <- params$edited_preference_score + score_impact
-      
-      # Add to change history
-      params$change_history <- rbind(params$change_history, data.frame(
-        timestamp = format(Sys.time(), "%H:%M:%S"),
-        student_id = student_id,
-        field = "Project Team",
-        old_value = old_project_team,
-        new_value = new_value,
-        score_impact = score_impact,
-        stringsAsFactors = FALSE
-      ))
-      
-      # Mark this row as modified
-      if (!(student_id %in% params$modified_rows)) {
-        params$modified_rows <- c(params$modified_rows, student_id)
-      }
-      
-      # Send a floating status message
-      session$sendCustomMessage(type = "showFloatingStatus", list(
-        text = paste0("Score ", ifelse(score_impact > 0, "increased", "decreased"), 
-                     " by ", abs(round(score_impact, 1)), " points"),
-        type = ifelse(score_impact > 0, "positive", "negative")
-      ))
-      
-      message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, 
-             ", impact: ", score_impact, ", new total: ", params$edited_preference_score)
       
       params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
     }
   })
 
   # Handle confirmation for team change despite group separation
-
-  # Fix confirm_team_change handler:
   observeEvent(input$confirm_team_change, {
     req(params$pending_change, params$pending_change$type == "project_team")
     
@@ -2524,12 +2207,12 @@ server <- function(input, output, session) {
     student_id <- params$pending_change$student_id
     new_value <- params$pending_change$new_value
     row_idx <- params$pending_change$row_idx
-    old_project_team <- params$pending_change$old_value
+    old_score <- params$pending_change$old_score
     
     # Update the assignment
     params$edited_assignments$project_team[row_idx] <- new_value
     
-    # Recalculate individual score
+    # Recalculate individual score - similar to your existing code
     data_list <- get_cached_data()
     
     # Extract topic from project_team
@@ -2541,17 +2224,14 @@ server <- function(input, output, session) {
       return(NA)
     })
     
-    # Get the old individual score before calculating the new one
-    old_score <- params$edited_assignments$individual_score[row_idx]
-    new_score <- old_score  # Default to keeping old score if we can't calculate
-    
     if (!is.na(topic)) {
       subteam <- params$edited_assignments$subteam[row_idx]
       
       # Find group in survey data
       student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
-      group_indices <- apply(data_list$survey_data[, student_cols, drop = FALSE], 1, function(row) {
-        any(row == student_id, na.rm = TRUE)
+      group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
+        row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
+        any(row_data == student_id, na.rm = TRUE)
       })
       
       if (any(group_indices)) {
@@ -2565,86 +2245,58 @@ server <- function(input, output, session) {
           
           # Update individual score
           params$edited_assignments$individual_score[row_idx] <- new_score
+          
+          # Update the edited total score (subtract old, add new)
+          params$edited_preference_score <- params$edited_preference_score - old_score + new_score
+          message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, ", new total: ", params$edited_preference_score)
         }
       }
     }
-    
-    # Update the edited total score
-    score_impact <- new_score - old_score
-    params$edited_preference_score <- params$edited_preference_score + score_impact
-    
-    # Add to change history
-    params$change_history <- rbind(params$change_history, data.frame(
-      timestamp = format(Sys.time(), "%H:%M:%S"),
-      student_id = student_id,
-      field = "Project Team",
-      old_value = old_project_team,
-      new_value = new_value,
-      score_impact = score_impact,
-      stringsAsFactors = FALSE
-    ))
-    
-    # Mark this row as modified
-    if (!(student_id %in% params$modified_rows)) {
-      params$modified_rows <- c(params$modified_rows, student_id)
-    }
-    
-    # Send a floating status message
-    session$sendCustomMessage(type = "showFloatingStatus", list(
-      text = paste0("Score ", ifelse(score_impact > 0, "increased", "decreased"), 
-                  " by ", abs(round(score_impact, 1)), " points"),
-      type = ifelse(score_impact > 0, "positive", "negative")
-    ))
-    
-    message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, 
-          ", impact: ", score_impact, ", new total: ", params$edited_preference_score)
     
     params$last_score_calc_time <- Sys.time()
     params$pending_change <- NULL  # Clear the pending change
     removeModal()
   })
 
-  # Fix confirm_subteam_change handler similarly:
-  observeEvent(input$confirm_subteam_change, {
-    req(params$pending_change, params$pending_change$type == "subteam")
+  # Handle confirmation for team change despite topic removal
+  observeEvent(input$confirm_topic_removal, {
+    req(params$pending_change, params$pending_change$type == "project_team")
     
-    # Apply the pending change
+    # Apply the pending change - same code as above
     student_id <- params$pending_change$student_id
     new_value <- params$pending_change$new_value
     row_idx <- params$pending_change$row_idx
-    current_subteam <- params$pending_change$old_value
+    old_score <- params$pending_change$old_score
     
     # Update the assignment
-    params$edited_assignments$subteam[row_idx] <- new_value
+    params$edited_assignments$project_team[row_idx] <- new_value
     
-    # Recalculate individual score for just this student
+    # Recalculate individual score - similar to your existing code
     data_list <- get_cached_data()
     
-    # Get project team and extract topic
-    project_team <- params$edited_assignments$project_team[row_idx]
+    # Extract topic from project_team
     topic <- tryCatch({
-      parts <- strsplit(project_team, "_team")[[1]]
-      if (length(parts) > 0) parts[1] else project_team
+      parts <- strsplit(new_value, "_team")[[1]]
+      if (length(parts) > 0) parts[1] else new_value
     }, error = function(e) {
-      warning("Invalid project_team format: ", project_team)
+      warning("Invalid project_team format: ", new_value)
       return(NA)
     })
     
-    # Get the old individual score before calculating the new one
-    old_score <- params$edited_assignments$individual_score[row_idx]
-    new_score <- old_score  # Default to keeping old score if we can't calculate
-    
     if (!is.na(topic)) {
+      subteam <- params$edited_assignments$subteam[row_idx]
+      
       # Find group in survey data
       student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
-      group_indices <- apply(data_list$survey_data[, student_cols, drop = FALSE], 1, function(row) {
-        any(row == student_id, na.rm = TRUE)
+      group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
+        row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
+        any(row_data == student_id, na.rm = TRUE)
       })
       
       if (any(group_indices)) {
         group_idx <- which(group_indices)[1]
         topic_idx <- match(topic, data_list$topics)
-        subteam_idx <- match(new_value, data_list$valid_subteams)
+        subteam_idx <- match(subteam, data_list$valid_subteams)
         
         if (!is.na(topic_idx) && !is.na(subteam_idx)) {
           # Get preference score from the array
@@ -2652,44 +2304,19 @@ server <- function(input, output, session) {
           
           # Update individual score
           params$edited_assignments$individual_score[row_idx] <- new_score
+          
+          # Update the edited total score (subtract old, add new)
+          params$edited_preference_score <- params$edited_preference_score - old_score + new_score
+          message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, ", new total: ", params$edited_preference_score)
         }
       }
     }
-    
-    # Update the edited total score
-    score_impact <- new_score - old_score
-    params$edited_preference_score <- params$edited_preference_score + score_impact
-    
-    # Add to change history
-    params$change_history <- rbind(params$change_history, data.frame(
-      timestamp = format(Sys.time(), "%H:%M:%S"),
-      student_id = student_id,
-      field = "Subteam",
-      old_value = current_subteam,
-      new_value = new_value,
-      score_impact = score_impact,
-      stringsAsFactors = FALSE
-    ))
-    
-    # Mark this row as modified
-    if (!(student_id %in% params$modified_rows)) {
-      params$modified_rows <- c(params$modified_rows, student_id)
-    }
-    
-    # Send a floating status message
-    session$sendCustomMessage(type = "showFloatingStatus", list(
-      text = paste0("Score ", ifelse(score_impact > 0, "increased", "decreased"), 
-                  " by ", abs(round(score_impact, 1)), " points"),
-      type = ifelse(score_impact > 0, "positive", "negative")
-    ))
-    
-    message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, 
-          ", impact: ", score_impact, ", new total: ", params$edited_preference_score)
     
     params$last_score_calc_time <- Sys.time()
     params$pending_change <- NULL  # Clear the pending change
     removeModal()
   })
+
 
   # ----------------------------------------------------------------------------------
   # Handle subteam change
@@ -2748,7 +2375,7 @@ server <- function(input, output, session) {
               student_id = student_id,
               new_value = new_value,
               row_idx = row_idx,
-              old_value = current_subteam
+              old_score = params$edited_assignments$individual_score[row_idx]
             )
             return()  # Exit without making the change yet
           }
@@ -2777,14 +2404,12 @@ server <- function(input, output, session) {
         return(NA)
       })
       
-      # Calculate new score
-      new_score <- old_score  # Default to keeping old score if we can't calculate
-      
       if (!is.na(topic)) {
         # Find group in survey data
         student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
-        group_indices <- apply(data_list$survey_data[, student_cols, drop = FALSE], 1, function(row) {
-          any(row == student_id, na.rm = TRUE)
+        group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
+          row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
+          any(row_data == student_id, na.rm = TRUE)
         })
         
         if (any(group_indices)) {
@@ -2798,39 +2423,13 @@ server <- function(input, output, session) {
             
             # Update individual score
             params$edited_assignments$individual_score[row_idx] <- new_score
+            
+            # Update the edited total score (subtract old, add new)
+            params$edited_preference_score <- params$edited_preference_score - old_score + new_score
+            message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, ", new total: ", params$edited_preference_score)
           }
         }
       }
-      
-      # Update the edited total score
-      score_impact <- new_score - old_score
-      params$edited_preference_score <- params$edited_preference_score + score_impact
-      
-      # Add to change history
-      params$change_history <- rbind(params$change_history, data.frame(
-        timestamp = format(Sys.time(), "%H:%M:%S"),
-        student_id = student_id,
-        field = "Subteam",
-        old_value = current_subteam,
-        new_value = new_value,
-        score_impact = score_impact,
-        stringsAsFactors = FALSE
-      ))
-      
-      # Mark this row as modified
-      if (!(student_id %in% params$modified_rows)) {
-        params$modified_rows <- c(params$modified_rows, student_id)
-      }
-      
-      # Send a floating status message
-      session$sendCustomMessage(type = "showFloatingStatus", list(
-        text = paste0("Score ", ifelse(score_impact > 0, "increased", "decreased"), 
-                     " by ", abs(round(score_impact, 1)), " points"),
-        type = ifelse(score_impact > 0, "positive", "negative")
-      ))
-      
-      message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, 
-             ", impact: ", score_impact, ", new total: ", params$edited_preference_score)
       
       params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
     }
@@ -2844,7 +2443,7 @@ server <- function(input, output, session) {
     student_id <- params$pending_change$student_id
     new_value <- params$pending_change$new_value
     row_idx <- params$pending_change$row_idx
-    current_subteam <- params$pending_change$old_value
+    old_score <- params$pending_change$old_score
     
     # Update the assignment
     params$edited_assignments$subteam[row_idx] <- new_value
@@ -2862,15 +2461,12 @@ server <- function(input, output, session) {
       return(NA)
     })
     
-    # Get the old individual score before calculating the new one
-    old_score <- params$edited_assignments$individual_score[row_idx]
-    new_score <- old_score  # Default to keeping old score if we can't calculate
-    
     if (!is.na(topic)) {
       # Find group in survey data
       student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
-      group_indices <- apply(data_list$survey_data[, student_cols, drop = FALSE], 1, function(row) {
-        any(row == student_id, na.rm = TRUE)
+      group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
+        row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
+        any(row_data == student_id, na.rm = TRUE)
       })
       
       if (any(group_indices)) {
@@ -2884,98 +2480,24 @@ server <- function(input, output, session) {
           
           # Update individual score
           params$edited_assignments$individual_score[row_idx] <- new_score
+          
+          # Update the edited total score (subtract old, add new)
+          params$edited_preference_score <- params$edited_preference_score - old_score + new_score
+          message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, ", new total: ", params$edited_preference_score)
         }
       }
     }
-    
-    # Update the edited total score
-    score_impact <- new_score - old_score
-    params$edited_preference_score <- params$edited_preference_score + score_impact
-    
-    # Add to change history
-    params$change_history <- rbind(params$change_history, data.frame(
-      timestamp = format(Sys.time(), "%H:%M:%S"),
-      student_id = student_id,
-      field = "Subteam",
-      old_value = current_subteam,
-      new_value = new_value,
-      score_impact = score_impact,
-      stringsAsFactors = FALSE
-    ))
-    
-    # Mark this row as modified
-    if (!(student_id %in% params$modified_rows)) {
-      params$modified_rows <- c(params$modified_rows, student_id)
-    }
-    
-    # Send a floating status message
-    session$sendCustomMessage(type = "showFloatingStatus", list(
-      text = paste0("Score ", ifelse(score_impact > 0, "increased", "decreased"), 
-                   " by ", abs(round(score_impact, 1)), " points"),
-      type = ifelse(score_impact > 0, "positive", "negative")
-    ))
-    
-    message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, 
-           ", impact: ", score_impact, ", new total: ", params$edited_preference_score)
     
     params$last_score_calc_time <- Sys.time()
     params$pending_change <- NULL  # Clear the pending change
     removeModal()
   })
 
-  # Add JavaScript for floating status messages
-  tags$script(HTML("
-    Shiny.addCustomMessageHandler('showFloatingStatus', function(message) {
-      // Get the floating status element
-      var status = document.getElementById('floating-status');
-      
-      // If element doesn't exist, create it
-      if (!status) {
-        status = document.createElement('div');
-        status.id = 'floating-status';
-        status.style.position = 'fixed';
-        status.style.bottom = '20px';
-        status.style.right = '20px';
-        status.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-        status.style.color = 'white';
-        status.style.padding = '10px 15px';
-        status.style.borderRadius = '4px';
-        status.style.zIndex = '9999';
-        status.style.display = 'none';
-        status.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.3)';
-        status.style.transition = 'opacity 0.3s';
-        document.body.appendChild(status);
-      }
-      
-      // Set the text and class
-      status.innerHTML = message.text;
-      status.className = '';
-      if (message.type === 'positive') {
-        status.style.backgroundColor = 'rgba(46, 204, 113, 0.9)';
-      } else if (message.type === 'negative') {
-        status.style.backgroundColor = 'rgba(231, 76, 60, 0.9)';
-      } else {
-        status.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-      }
-      
-      // Show the status
-      status.style.display = 'block';
-      status.style.opacity = '1';
-      
-      // Hide after 3 seconds
-      setTimeout(function() {
-        status.style.opacity = '0';
-        setTimeout(function() {
-          status.style.display = 'none';
-        }, 300);
-      }, 3000);
-    });
-  "))
-}
 
 
 
-# ----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------
 # END
-# ----------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------------------------
 
+}
