@@ -783,26 +783,22 @@ project_setup_model3_ui <- fluidPage(
                       <th style="padding: 8px; border: 1px solid #ddd;">Student_ID #2</th>
                       <th style="padding: 8px; border: 1px solid #ddd;">Student_ID #3</th>
                       <th style="padding: 8px; border: 1px solid #ddd;">Student_ID #4</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">First Choice (Topic)</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Second Choice (Topic)</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">First Choice (Subteam)</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Second Choice (Subteam)</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Skill 1 Level</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Skill 2 Level</th>
-                      <th style="padding: 8px; border: 1px solid #ddd;">Skill 3 Level</th>
+                      <th style="padding: 8px; border: 1px solid #ddd;">Rank Topic Preference</th>
+                      <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Python</th>
+                      <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Java</th>
+                      <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Python</th>
+                      <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Java</th>
                     </tr>
                     <tr style="background-color: #f9f9f9;">
                       <td style="padding: 8px; border: 1px solid #ddd;">S112345</td>
                       <td style="padding: 8px; border: 1px solid #ddd;">S212345</td>
                       <td style="padding: 8px; border: 1px solid #ddd;">S312345</td>
                       <td style="padding: 8px; border: 1px solid #ddd;">S412345</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">Topic A</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">Topic B</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">Role 1</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">Role 2</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">7</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">Topic 1_Subteam A;Topic 2_Subteam B;Topic 1_Subteam B;Topic 3_Subteam B;Topic 3_Subteam A;Topic 4_Subteam A;Topic 4_Subteam B;Topic 2_Subteam A;Topic 5_Subteam A;Topic 5_Subteam B;</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">5</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">3</td>
                       <td style="padding: 8px; border: 1px solid #ddd;">4</td>
-                      <td style="padding: 8px; border: 1px solid #ddd;">9</td>
+                      <td style="padding: 8px; border: 1px solid #ddd;">2</td>
                     </tr>
                   </table>')
           ),

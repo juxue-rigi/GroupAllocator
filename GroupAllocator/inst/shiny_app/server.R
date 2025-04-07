@@ -279,8 +279,7 @@ server <- function(input, output, session) {
       model_num,
       "1" = "Model: Subteam Considerations",
       "2" = "Model: Diversity Optimization",  
-      "3" = "Model: Subteam + Skills",
-      "4" = "Model: No Subteam + Skills"
+      "3" = "Model: Subteam + Skills"
     )
   })
 
@@ -449,6 +448,7 @@ server <- function(input, output, session) {
         <p>Your CSV should include:</p>
         <ul>
           <li><strong>Student_ID columns</strong> (one for each student in a group)</li>
+          </li><strong>Make sure column name start with "Student_ID"</strong></li>
           <li><strong>Topic preference columns</strong> (First Choice, Second Choice, etc.)</li>
           <li><strong>Subteam role preference columns</strong></li>
         </ul>
@@ -470,19 +470,21 @@ server <- function(input, output, session) {
     } else if(model_num == 2) {
       # Model 2: Diversity Optimization
       HTML('
-        <p>Your CSV should include:</p>
+        <p>Please make sure your the below text elements exists in your uploaded CSV. Make manual adjustments if necessary:</p>
         <ul>
-          <li><strong>student_id column</strong> (one for each individual student)</li>
+          <li><strong>Student_ID column</strong> (one for each individual student) </li>
+          </li><strong>Make sure column name start with "Student_ID"</strong></li>
           <li><strong>diversity_category columns</strong> (e.g., major, nationality, year, gender)</li>
+          </li><strong>Make sure column name start with "diversity_category"</strong></li>
         </ul>
         <div style="overflow-x: auto; margin-top: 10px;">
           <table style="width:100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
             <tr style="background-color: #2c3e50; color: white;">
               <th style="padding: 6px; border: 1px solid #ddd;">student_id</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_major</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_nationality</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_year</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_gender</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_####</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_#####</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_######</th>
+              <th style="padding: 6px; border: 1px solid #ddd;">diversity_category_###</th>
             </tr>
           </table>
         </div>
@@ -493,19 +495,24 @@ server <- function(input, output, session) {
         <p>Your CSV should include:</p>
         <ul>
           <li><strong>Student_ID columns</strong> (one for each student in a group)</li>
-          <li><strong>Topic preference columns</strong></li>
-          <li><strong>Subteam preference columns</strong></li>
+          </li><strong>Make sure column name start with "Student_ID"</strong></li>
+          <li><strong>Preference column</strong></li>
+          </li><strong>Make sure column name is "Rank Topic Preference"</strong></li>
           <li><strong>Skill level columns</strong> (numeric ratings)</li>
+          </li><strong>Make sure column name starts with "Skill Rating for Student_ID" and end with ".SKILL" </strong></li>
         </ul>
         <div style="overflow-x: auto; margin-top: 10px;">
           <table style="width:100%; border-collapse: collapse; text-align: center; font-size: 0.9em;">
             <tr style="background-color: #2c3e50; color: white;">
-              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #1</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">Student_ID #2</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Topic)</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">First Choice (Subteam)</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">Skill 1 Level</th>
-              <th style="padding: 6px; border: 1px solid #ddd;">Skill 2 Level</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Student_ID #1</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Student_ID #2</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Student_ID #3</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Student_ID #4</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Rank Topic Preference</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Python</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Java</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Python</th>
+                <th style="padding: 8px; border: 1px solid #ddd;">Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Java</th>
             </tr>
           </table>
         </div>
@@ -803,120 +810,450 @@ server <- function(input, output, session) {
   })
 
   
-  #---------------------------------------------------------------------------
-  # Data Tables for Results
-  #---------------------------------------------------------------------------
+#---------------------------------------------------------------------------
+# Data Tables for Results
+#---------------------------------------------------------------------------
+
+# Observer to add skill columns to model 3 data
+observe({
+  req(params$final_assignments)
   
-  # Standard allocation table (view mode)
-  output$allocation_table <- DT::renderDataTable({
-    req(params$final_assignments)
+  # Only process for model 3
+  if (as.numeric(model_type()) == 3) {
+    message("Processing model 3 skill columns")
     
-    # Debug info
-    message("Rendering allocation table. Row count: ", nrow(params$final_assignments))
-    message("Columns: ", paste(names(params$final_assignments), collapse=", "))
+    # Check if we already have skill columns
+    existing_skill_cols <- grep("skill", names(params$final_assignments), value = TRUE, ignore.case = TRUE)
     
-    # Ensure individual scores are calculated
-    if (!"individual_score" %in% names(params$final_assignments)) {
-      message("Adding missing individual scores to final_assignments")
-      # Calculate individual scores
+    if (length(existing_skill_cols) == 0) {
+      message("No skill columns found, attempting to add them")
+      
       tryCatch({
-        data_list <- read_data("survey_data.csv")
-        params$final_assignments <- calculate_individual_scores(
-          params$final_assignments,
-          data_list$survey_data,
-          data_list$topics,
-          data_list$valid_subteams,
-          data_list$pref_array
-        )
-      }, error = function(e) {
-        message("Error calculating individual scores: ", e$message)
-        # Fallback: Use solution score for all
-        if ("solution_score" %in% names(params$final_assignments)) {
-          params$final_assignments$individual_score <- params$final_assignments$solution_score
+        # Load the data using model 3's reader
+        data_list <- read_data_subteam_skills("survey_data.csv")
+        
+        # Get student skills data
+        skills_data <- data_list$skills_data
+        skills <- data_list$skills
+        
+        if (length(skills) > 0 && !is.null(skills_data)) {
+          message("Found ", length(skills), " skills in the data")
+          
+          # Create a copy of the final assignments to modify
+          updated_assignments <- params$final_assignments
+          
+          # Add empty skill columns
+          for (skill in skills) {
+            col_name <- paste0("skill_", skill)
+            updated_assignments[[col_name]] <- NA_real_
+          }
+          
+          # Fill in skill values for each student
+          for (i in 1:nrow(updated_assignments)) {
+            student_id <- updated_assignments$student_id[i]
+            
+            if (!is.null(skills_data[[student_id]])) {
+              for (skill in skills) {
+                col_name <- paste0("skill_", skill)
+                if (!is.null(skills_data[[student_id]][[skill]])) {
+                  updated_assignments[i, col_name] <- skills_data[[student_id]][[skill]]
+                }
+              }
+            }
+          }
+          
+          # Update the final assignments with skill columns
+          params$final_assignments <- updated_assignments
+          
+          # Also update the current solution in all_assignments list
+          if (!is.null(params$all_assignments) && !is.null(params$current_solution_idx)) {
+            idx <- params$current_solution_idx
+            if (idx <= length(params$all_assignments)) {
+              params$all_assignments[[idx]] <- updated_assignments
+            }
+          }
+          
+          message("Successfully added skill columns to final_assignments")
         } else {
-          params$final_assignments$individual_score <- 0
+          message("No skill data found in the model 3 data")
         }
+      }, error = function(e) {
+        message("Error adding skill columns: ", e$message)
       })
+    } else {
+      message("Skill columns already exist: ", paste(existing_skill_cols, collapse=", "))
     }
-    
-    # Ensure all required columns exist
-    required_cols <- c("student_id", "project_team", "subteam", "solution_number", "individual_score")
-    for (col in required_cols) {
-      if (!col %in% names(params$final_assignments)) {
-        params$final_assignments[[col]] <- NA
+  }
+})
+
+# Standard allocation table (view mode)
+# Fixed allocation_table render function with model-specific handling
+output$allocation_table <- DT::renderDataTable({
+  req(params$final_assignments)
+  
+  # Debug info
+  message("Rendering allocation table. Row count: ", nrow(params$final_assignments))
+  message("Columns: ", paste(names(params$final_assignments), collapse=", "))
+
+  # Get model type
+  model_num <- as.numeric(model_type())
+  
+  # Create a safer copy of the data for display
+  display_data <- params$final_assignments
+  
+  # Only process skill columns for model 3
+  if (model_num == 3) {
+    # Fix data types for skill columns to prevent errors
+    skill_cols <- grep("skill_", names(display_data), value = TRUE)
+    if(length(skill_cols) > 0) {
+      message("Converting skill columns to numeric (model 3)")
+      for(col in skill_cols) {
+        display_data[[col]] <- as.numeric(as.character(display_data[[col]]))
       }
     }
+  }
+  
+  # Prepare data for display based on model type
+  if (model_num == 2) {
+    # MODEL 2: DIVERSITY OPTIMIZATION
+    # Get diversity category columns with case-insensitive matching
+    diversity_cols <- grep("diversity", names(display_data), value = TRUE, ignore.case = TRUE)
+    message("Found diversity columns: ", paste(diversity_cols, collapse=", "))
     
-    # Add group_id if missing
-    if (!"group_id" %in% names(params$final_assignments)) {
-      params$final_assignments$group_id <- 1:nrow(params$final_assignments)
+    # Select columns for display
+    col_subset <- c("student_id", "project_team", "solution_number", "individual_score")
+    if(length(diversity_cols) > 0) {
+      col_subset <- c(col_subset, diversity_cols)
     }
     
-    # Prepare data for display
-    display_data <- params$final_assignments %>%
-      select(student_id, project_team, subteam, solution_number, individual_score, group_id)
+    # Make sure columns exist
+    col_subset <- intersect(col_subset, names(display_data))
+    display_subset <- display_data[, col_subset, drop = FALSE]
     
-    # Create a formatted DT table
+    # Create column names for display
+    col_names <- c(
+      "Student ID", 
+      "Project Team",
+      "Solution Number",
+      "Preference Score"
+    )
+    
+    # Add diversity column names
+    if (length(diversity_cols) > 0 && all(diversity_cols %in% names(display_subset))) {
+      diversity_nice_names <- sapply(diversity_cols, function(col) {
+        # Extract the category name after the last underscore
+        category <- sub("^diversity_category_", "", col)
+        # Capitalize first letter
+        paste0(toupper(substr(category, 1, 1)), substr(category, 2, nchar(category)))
+      })
+      col_names <- c(col_names, diversity_nice_names)
+    }
+    
+  } else if (model_num == 3) {
+    # MODEL 3: SUBTEAM + SKILLS
+    # Get skill columns - only for model 3
+    skill_cols <- grep("^skill_", names(display_data), value = TRUE)
+    message("Found skill columns for model 3: ", paste(skill_cols, collapse=", "))
+    
+    # Base columns to always include
+    col_subset <- c("student_id", "project_team", "subteam", "solution_number", "individual_score")
+    
+    # Add skill columns if they exist
+    if(length(skill_cols) > 0) {
+      col_subset <- c(col_subset, skill_cols)
+    }
+    
+    # Make sure columns exist
+    col_subset <- intersect(col_subset, names(display_data))
+    
+    # Create a clean subset
+    display_subset <- display_data[, col_subset, drop = FALSE]
+    
+    message("Selected columns for Model 3: ", paste(colnames(display_subset), collapse=", "))
+    
+    # Create column names for display
+    col_names <- c(
+      "Student ID", 
+      "Project Team",
+      "Subteam",
+      "Solution Number",
+      "Preference Score"
+    )
+    
+    # Add skill column names only for model 3
+    if (length(skill_cols) > 0 && all(skill_cols %in% names(display_subset))) {
+      skill_nice_names <- sapply(skill_cols, function(col) {
+        # Extract skill name without prefix
+        skill_name <- gsub("^skill_", "", col)
+        # Capitalize first letter
+        paste0("Skill: ", toupper(substr(skill_name, 1, 1)), substr(skill_name, 2, nchar(skill_name)))
+      })
+      col_names <- c(col_names, skill_nice_names)
+    }
+    
+  } else {
+    # MODEL 1: Standard columns, no skills
+    col_subset <- c("student_id", "project_team", "subteam", "solution_number", "individual_score")
+    
+    # Make sure columns exist
+    col_subset <- intersect(col_subset, names(display_data))
+    display_subset <- display_data[, col_subset, drop = FALSE]
+    
+    # Standard column names - no skills
+    col_names <- c(
+      "Student ID", 
+      "Project Team",
+      "Subteam",
+      "Solution Number",
+      "Preference Score"
+    )
+  }
+  
+  # Ensure we have valid data to display
+  if(ncol(display_subset) == 0) {
+    message("Warning: No valid columns to display")
+    # Create a basic placeholder table
+    display_subset <- data.frame(
+      student_id = display_data$student_id,
+      project_team = display_data$project_team,
+      message = "Data format error - contact administrator"
+    )
+    col_names <- c("Student ID", "Project Team", "Message")
+  }
+  
+  # Ensure column names match the data length
+  if (length(col_names) > ncol(display_subset)) {
+    col_names <- col_names[1:ncol(display_subset)]
+  } else if (length(col_names) < ncol(display_subset)) {
+    extra_names <- paste0("Column", (length(col_names)+1):ncol(display_subset))
+    col_names <- c(col_names, extra_names)
+  }
+  
+  # Create a formatted DT table - with essential settings that should work
+  tryCatch({
     DT::datatable(
-      display_data,
+      display_subset,
       rownames = FALSE,
-      colnames = c(
-        "Student ID", 
-        "Project Team", 
-        "Subteam", 
-        "Solution Number", 
-        "Preference Score",
-        "Group ID"  # Add column name for group identification
-      ),
+      colnames = col_names,
       options = list(
         pageLength = 25,
         dom = 'ftip',
-        order = list(list(1, 'asc'), list(2, 'asc')), # Sort by group_id first, then project team and subteam
+        order = list(list(1, 'asc')) # Sort by project team
+      )
+    )
+  }, error = function(e) {
+    # If there's still an error, fall back to a very simple table
+    message("Error in datatable: ", e$message)
+    DT::datatable(
+      display_subset,
+      rownames = FALSE,
+      options = list(pageLength = 25)
+    )
+  })
+})
+
+# Editable allocation table (edit mode)
+output$editable_allocation_table <- DT::renderDataTable({
+  req(params$edited_assignments)
+  
+  # Debug information
+  message("Rendering editable allocation table")
+  message("Row count in edited_assignments: ", nrow(params$edited_assignments))
+  message("Columns: ", paste(names(params$edited_assignments), collapse=", "))
+
+  # Get model type
+  model_num <- as.numeric(model_type())
+  
+  # Fix data types for skill columns
+  params$edited_assignments <- fix_skill_columns(params$edited_assignments)
+  
+  # Make sure we have valid data structure
+  if (nrow(params$edited_assignments) == 0) {
+    message("Warning: edited_assignments has 0 rows")
+    # If edited_assignments is empty, try to initialize it from final_assignments
+    if (!is.null(params$final_assignments) && nrow(params$final_assignments) > 0) {
+      params$edited_assignments <- params$final_assignments
+      message("Initialized edited_assignments from final_assignments with ", nrow(params$final_assignments), " rows")
+    } else {
+      # Return empty table if we can't get valid data
+      return(DT::datatable(data.frame(
+        student_id = character(0),
+        project_team = character(0),
+        subteam = character(0),
+        solution_number = integer(0),
+        individual_score = numeric(0),
+        group_id = integer(0)
+      )))
+    }
+  }
+  
+  # Get unique project teams for dropdowns
+  unique_teams <- unique(params$edited_assignments$project_team)
+  message("Unique teams: ", length(unique_teams))
+  
+  # Create a display data frame with individual scores instead of solution score
+  display_data <- params$edited_assignments
+  
+  # If individual_score column doesn't exist yet, try to calculate it
+  if (!"individual_score" %in% names(display_data)) {
+    message("Adding missing individual scores to edited_assignments")
+    # Use the helper function to add individual scores
+    display_data <- tryCatch({
+      if (model_num == 2) {
+        data_list <- read_data_diversity("survey_data.csv")
+      } else if (model_num == 3) {
+        data_list <- read_data_subteam_skills("survey_data.csv")
+      } else {
+        data_list <- read_data("survey_data.csv")
+      }
+      
+      calculate_individual_scores(
+        display_data,
+        data_list$survey_data,
+        data_list$topics,
+        data_list$valid_subteams,
+        data_list$pref_array
+      )
+    }, error = function(e) {
+      message("Error calculating individual scores: ", e$message)
+      # If there's an error, just use the solution score for all
+      if ("solution_score" %in% names(display_data)) {
+        display_data$individual_score <- display_data$solution_score
+      } else {
+        display_data$individual_score <- 0
+      }
+      return(display_data)
+    })
+  }
+  
+  # Add group_id if missing
+  if (!"group_id" %in% names(display_data)) {
+    display_data$group_id <- 1:nrow(display_data)
+    message("Added missing group_id column")
+  }
+  
+  if (model_num == 2) {
+    # MODEL 2: DIVERSITY OPTIMIZATION - no subteam column
+    # Get diversity category columns if they exist
+    diversity_cols <- grep("diversity_category", names(display_data), value = TRUE, ignore.case = TRUE)
+    
+    # Get skill columns if they exist (shouldn't for model 2, but just in case)
+    skill_cols <- grep("skill", names(display_data), value = TRUE, ignore.case = TRUE)
+
+    # Ensure all required columns exist for Model 2
+    required_cols <- c("student_id", "project_team", "solution_number", "individual_score")
+    for (col in required_cols) {
+      if (!col %in% names(display_data)) {
+        display_data[[col]] <- NA
+        message("Added missing column: ", col)
+      }
+    }
+    
+    # Create selection columns including diversity categories and skills
+    select_cols <- c("student_id", "project_team", "solution_number", "individual_score", "group_id")
+    if (length(diversity_cols) > 0) {
+      select_cols <- c(select_cols, diversity_cols)
+    }
+    if (length(skill_cols) > 0) {
+      select_cols <- c(select_cols, skill_cols)
+    }
+    
+    # Create column names
+    col_names <- c(
+      "Student ID", 
+      "Project Team", 
+      "Solution Number", 
+      "Preference Score",
+      "Group ID"
+    )
+    
+    # Add nice column names for diversity categories
+    if (length(diversity_cols) > 0) {
+      diversity_nice_names <- sapply(diversity_cols, function(col) {
+        # Extract the category name after the last underscore
+        category <- sub("^diversity_category_", "", col)
+        # Capitalize first letter
+        paste0(toupper(substr(category, 1, 1)), substr(category, 2, nchar(category)))
+      })
+      col_names <- c(col_names, diversity_nice_names)
+    }
+    
+    # Add nice column names for skill columns
+    if (length(skill_cols) > 0) {
+      skill_nice_names <- sapply(skill_cols, function(col) {
+        # Extract skill name
+        skill_name <- gsub("skill_|_skill", "", col, ignore.case = TRUE)
+        # Capitalize first letter
+        paste0("Skill: ", toupper(substr(skill_name, 1, 1)), substr(skill_name, 2, nchar(skill_name)))
+      })
+      col_names <- c(col_names, skill_nice_names)
+    }
+    
+    # Make sure we only include columns that actually exist
+    select_cols <- select_cols[select_cols %in% names(display_data)]
+    
+    # Create display data frame for Model 2
+    display_data_selected <- display_data[, select_cols, drop = FALSE]
+    
+    # Ensure col_names matches columns
+    if (length(col_names) > ncol(display_data_selected)) {
+      col_names <- col_names[1:ncol(display_data_selected)]
+    }
+    
+    # Create a datatable with editable cells for project_team only (no subteam for Model 2)
+    DT::datatable(
+      display_data_selected,
+      rownames = FALSE,
+      colnames = col_names,
+      editable = list(
+        target = "cell", 
+        disable = list(columns = c(0, 2, 3, 4, 5:ncol(display_data_selected)-1)) # Disable editing for all except project_team
+      ),
+      options = list(
+        pageLength = 25,
+        dom = 'frtip',
         rowCallback = JS("
           function(row, data, index) {
-            // Create a group identifier from project_team and subteam
-            var groupId = data[1] + '_' + data[2]; // Combine project_team and subteam
+            // Use the group_id to add a specific class
+            var groupId = data[4];
+            $(row).addClass('group-' + groupId);
             
-            // Store this as a data attribute for styling
-            $(row).attr('data-group', groupId);
-            
-            // Apply styling based on project_team
-            var projectTeam = data[1];
-            if(projectTeam.includes('Topic 1')) {
-              $(row).addClass('group-even');
-            } else if(projectTeam.includes('Topic 2')) {
-              $(row).addClass('group-odd');
-            } else if(projectTeam.includes('Topic 3')) {
-              $(row).addClass('group-even');
-            } else if(projectTeam.includes('Topic 4')) {
-              $(row).addClass('group-odd');
-            } else if(projectTeam.includes('Topic 5')) {
+            // Add alternating color based on group_id
+            if (groupId % 2 == 0) {
               $(row).addClass('group-even');
             } else {
-              // Alternate for any other topics
-              if (index % 2 === 0) {
-                $(row).addClass('group-even');
-              } else {
-                $(row).addClass('group-odd');
-              }
-            }
-            
-            // Additional styling for subteams
-            var subteam = data[2];
-            if(subteam === 'A') {
-              $(row).find('td:eq(2)').css('border-left', '3px solid rgba(26, 188, 156, 0.7)');
-            } else if(subteam === 'B') {
-              $(row).find('td:eq(2)').css('border-left', '3px solid rgba(52, 152, 219, 0.7)');
+              $(row).addClass('group-odd');
             }
           }
         "),
         columnDefs = list(
           list(
-            targets = 4, # preference score column
+            targets = 1, # project_team column
+            render = JS(
+              paste0(
+                "function(data, type, row, meta) {",
+                "  if(type === 'display'){",
+                "    var select = '<select class=\"project-team-select\" data-student=\"' + row[0] + '\">';",
+                "    var options = ", jsonlite::toJSON(unique_teams), ";",
+                "    for(var i=0; i<options.length; i++){",
+                "      var selected = options[i] === data ? 'selected' : '';",
+                "      select += '<option value=\"' + options[i] + '\" ' + selected + '>' + options[i] + '</option>';",
+                "    }",
+                "    select += '</select>';",
+                "    return select;",
+                "  }",
+                "  return data;",
+                "}"
+              )
+            )
+          ),
+          list(
+            targets = 3, # preference score column
             render = JS("
               function(data, type, row, meta) {
                 if(type === 'display'){
                   var score = parseFloat(data);
+                  if(isNaN(score)) score = 0;
                   var color = score > 7 ? '#2ecc71' : (score > 3 ? '#f39c12' : '#e74c3c');
                   return '<span style=\"color: ' + color + '; font-weight: 500;\">' + score.toFixed(1) + '</span>';
                 }
@@ -925,78 +1262,31 @@ server <- function(input, output, session) {
             ")
           ),
           list(
-            targets = 5, # Hide the group_id column
+            targets = 4, # Hide the group_id column
             visible = FALSE
           )
         )
       ),
-      selection = 'none'
+      callback = JS("
+        table.on('change', 'select.project-team-select', function() {
+          var row = table.row($(this).closest('tr')).index();
+          var student = $(this).closest('tr').find('td:first').text();
+          var newValue = $(this).val();
+          
+          // Only send the update to Shiny without trying to update the cell directly
+          Shiny.setInputValue('project_team_change', {
+            student_id: student,
+            new_value: newValue,
+            row: row
+          });
+        });
+      ")
     )
-  })
-  
-  # Editable allocation table (edit mode)
-  output$editable_allocation_table <- DT::renderDataTable({
-    req(params$edited_assignments)
-    
-    # Debug information
-    message("Rendering editable allocation table")
-    message("Row count in edited_assignments: ", nrow(params$edited_assignments))
-    message("Columns: ", paste(names(params$edited_assignments), collapse=", "))
-    
-    # Make sure we have valid data structure
-    if (nrow(params$edited_assignments) == 0) {
-      message("Warning: edited_assignments has 0 rows")
-      # If edited_assignments is empty, try to initialize it from final_assignments
-      if (!is.null(params$final_assignments) && nrow(params$final_assignments) > 0) {
-        params$edited_assignments <- params$final_assignments
-        message("Initialized edited_assignments from final_assignments with ", nrow(params$final_assignments), " rows")
-      } else {
-        # Return empty table if we can't get valid data
-        return(DT::datatable(data.frame(
-          student_id = character(0),
-          project_team = character(0),
-          subteam = character(0),
-          solution_number = integer(0),
-          individual_score = numeric(0),
-          group_id = integer(0)
-        )))
-      }
-    }
-    
-    # Get unique project teams and subteams for dropdowns
-    unique_teams <- unique(params$edited_assignments$project_team)
+  } else {
+    # MODELS 1, 3: Include subteam column
+    # Get unique subteams for models that use them
     unique_subteams <- unique(params$edited_assignments$subteam)
-    
-    message("Unique teams: ", length(unique_teams))
     message("Unique subteams: ", length(unique_subteams))
-    
-    # Create a display data frame with individual scores instead of solution score
-    display_data <- params$edited_assignments
-    
-    # If individual_score column doesn't exist yet, try to calculate it
-    if (!"individual_score" %in% names(display_data)) {
-      message("Adding missing individual scores to edited_assignments")
-      # Use the helper function to add individual scores
-      display_data <- tryCatch({
-        data_list <- read_data("survey_data.csv")
-        calculate_individual_scores(
-          display_data,
-          data_list$survey_data,
-          data_list$topics,
-          data_list$valid_subteams,
-          data_list$pref_array
-        )
-      }, error = function(e) {
-        message("Error calculating individual scores: ", e$message)
-        # If there's an error, just use the solution score for all
-        if ("solution_score" %in% names(display_data)) {
-          display_data$individual_score <- display_data$solution_score
-        } else {
-          display_data$individual_score <- 0
-        }
-        return(display_data)
-      })
-    }
     
     # Ensure all required columns exist
     required_cols <- c("student_id", "project_team", "subteam", "solution_number", "individual_score")
@@ -1007,18 +1297,24 @@ server <- function(input, output, session) {
       }
     }
     
-    # Add group_id if missing
-    if (!"group_id" %in% names(display_data)) {
-      display_data$group_id <- 1:nrow(display_data)
-      message("Added missing group_id column")
-    }
+    # Select needed columns with error handling
+    selected_cols <- intersect(
+      c("student_id", "project_team", "subteam", "solution_number", "individual_score", "group_id"),
+      names(display_data)
+    )
     
-    # Update edited_assignments with any fixes we made
-    params$edited_assignments <- display_data
+    # Use dplyr::select if available, otherwise fall back to base R
+    display_data_selected <- tryCatch({
+      display_data %>% select(all_of(selected_cols))
+    }, error = function(e) {
+      message("Error in dplyr::select: ", e$message)
+      # Fallback to base R
+      display_data[, selected_cols, drop = FALSE]
+    })
     
     # Create a datatable with editable cells for project_team and subteam
     DT::datatable(
-      display_data %>% select(student_id, project_team, subteam, solution_number, individual_score, group_id),
+      display_data_selected,
       rownames = FALSE,
       colnames = c(
         "Student ID", 
@@ -1026,7 +1322,7 @@ server <- function(input, output, session) {
         "Subteam", 
         "Solution Number", 
         "Preference Score",
-        "Group ID"  # Add column name
+        "Group ID"
       ),
       editable = list(
         target = "cell", 
@@ -1138,19 +1434,20 @@ server <- function(input, output, session) {
         });
       ")
     )
-  })
-  
-  # Download handler for results
-  output$download_csv <- downloadHandler(
-    filename = function() {
-      paste("student_assignments_", Sys.Date(), ".csv", sep = "")
-    },
-    content = function(file) {
-      req(params$final_assignments)
-      write.csv(params$final_assignments, file, row.names = FALSE)
-    }
-  )
-  
+  }
+})
+
+# Download handler for results
+output$download_csv <- downloadHandler(
+  filename = function() {
+    paste("student_assignments_", Sys.Date(), ".csv", sep = "")
+  },
+  content = function(file) {
+    req(params$final_assignments)
+    write.csv(params$final_assignments, file, row.names = FALSE)
+  }
+)
+
   #===========================================================================
   # PAGE NAVIGATION HANDLERS
   #===========================================================================
@@ -1996,12 +2293,12 @@ server <- function(input, output, session) {
     })
   })
   
-  #===========================================================================
-  # MANUAL EDIT MODE
-  #===========================================================================
-  
-  # Toggle edit mode
-  observeEvent(input$toggle_edit_mode, {
+ #===========================================================================
+# MANUAL EDIT MODE
+#===========================================================================
+
+# Toggle edit mode
+observeEvent(input$toggle_edit_mode, {
   # Toggle the edit mode flag
   params$edit_mode <- !params$edit_mode
   
@@ -2042,94 +2339,77 @@ server <- function(input, output, session) {
   }
 }) 
 
-  # ------------------------------------------------------------------------------------------------
-  # Handle project team change
-  # ------------------------------------------------------------------------------------------------
-  observeEvent(input$project_team_change, {
-    req(params$edited_assignments, input$project_team_change)
+# ------------------------------------------------------------------------------------------------
+# Handle project team change
+# ------------------------------------------------------------------------------------------------
+observeEvent(input$project_team_change, {
+  req(params$edited_assignments, input$project_team_change)
+  
+  # Get model type
+  model_num <- as.numeric(model_type())
+  
+  student_id <- input$project_team_change$student_id
+  new_value <- input$project_team_change$new_value
+  
+  # Find index in the edited assignments
+  row_idx <- which(params$edited_assignments$student_id == student_id)
+  
+  if (length(row_idx) > 0) {
+    # Store old project team value for checking topic disappearance
+    old_project_team <- params$edited_assignments$project_team[row_idx]
     
-    student_id <- input$project_team_change$student_id
-    new_value <- input$project_team_change$new_value
+    # Extract topics from old and new project teams
+    old_topic <- tryCatch({
+      parts <- strsplit(old_project_team, "_team")[[1]]
+      if (length(parts) > 0) parts[1] else old_project_team
+    }, error = function(e) {
+      warning("Invalid old project_team format: ", old_project_team)
+      return(old_project_team)
+    })
     
-    # Find index in the edited assignments
-    row_idx <- which(params$edited_assignments$student_id == student_id)
-    
-    if (length(row_idx) > 0) {
-      # Store old project team value for checking topic disappearance
-      old_project_team <- params$edited_assignments$project_team[row_idx]
-      
-      # Extract topics from old and new project teams
-      old_topic <- strsplit(old_project_team, "_team")[[1]][1]
-      new_topic <- strsplit(new_value, "_team")[[1]][1]
+    new_topic <- tryCatch({
+      parts <- strsplit(new_value, "_team")[[1]]
+      if (length(parts) > 0) parts[1] else new_value
+    }, error = function(e) {
+      warning("Invalid new project_team format: ", new_value)
+      return(new_value)
+    })
 
-      # Debug information
-      message("Project team change for student: ", student_id)
-      message("Old project team: ", old_project_team)
-      message("New project team: ", new_value)
-      message("Old topic: ", old_topic)
-      message("New topic: ", new_topic)
+    # Debug information
+    message("Project team change for student: ", student_id)
+    message("Old project team: ", old_project_team)
+    message("New project team: ", new_value)
+    message("Old topic: ", old_topic)
+    message("New topic: ", new_topic)
+    
+    # Get the group_id for this student
+    group_id <- params$edited_assignments$group_id[row_idx]
+    
+    # 1. Check if this change would separate student from their group
+    # Find other students from the same group
+    group_members <- which(params$edited_assignments$group_id == group_id)
+    
+    # If any members will be on a different team after this change
+    will_separate_group <- FALSE
+    if (length(group_members) > 1) {
+      # If any other members will be on a different team/subteam
+      other_members <- group_members[group_members != row_idx]
+      current_teams <- unique(params$edited_assignments$project_team[other_members])
       
-      # Get the group_id for this student
-      group_id <- params$edited_assignments$group_id[row_idx]
-      
-      # 1. Check if this change would separate student from their group
-      # Find other students from the same group
-      group_members <- which(params$edited_assignments$group_id == group_id)
-      
-      # If any members will be on a different team after this change
-      will_separate_group <- FALSE
-      if (length(group_members) > 1) {
-        # If any other members will be on a different team/subteam
-        other_members <- group_members[group_members != row_idx]
-        current_teams <- unique(params$edited_assignments$project_team[other_members])
-        current_subteams <- unique(params$edited_assignments$subteam[other_members])
-        
-        if (length(current_teams) == 1 && current_teams != new_value) {
-          will_separate_group <- TRUE
-          # Show warning
-          showModal(modalDialog(
-            title = "Group Separation Warning",
-            HTML(paste0(
-              "<div style='color: #f39c12;'><i class='fa fa-exclamation-triangle'></i> Warning:</div>",
-              "<p>This change will separate student <strong>", student_id, "</strong> from their original group members.</p>",
-              "<p>Other members are currently assigned to: <strong>", current_teams, "</strong></p>"
-            )),
-            footer = tagList(
-              modalButton("Cancel"),
-              actionButton("confirm_team_change", "Proceed Anyway", 
-                          class = "btn-warning")
-            ),
-            easyClose = TRUE
-          ))
-          # Store the pending change to apply after confirmation
-          params$pending_change <- list(
-            type = "project_team",
-            student_id = student_id,
-            new_value = new_value,
-            row_idx = row_idx,
-            old_score = params$edited_assignments$individual_score[row_idx]
-          )
-          return()  # Exit without making the change yet
-        }
-      }
-      
-      # 2. Check if this change would cause a topic to disappear
-      # Count occurrences of the old topic
-      old_topic_count <- sum(grepl(paste0("^", old_topic), params$edited_assignments$project_team))
-      
-      if (old_topic_count == 1 && old_topic != new_topic) {
-        # Show warning - this is the last instance of this topic
+      if (length(current_teams) == 1 && current_teams != new_value) {
+        will_separate_group <- TRUE
+        # Show warning
         showModal(modalDialog(
-          title = "Topic Removal Warning",
+          title = "Group Separation Warning",
           HTML(paste0(
-            "<div style='color: #e74c3c;'><i class='fa fa-exclamation-triangle'></i> Warning:</div>",
-            "<p>This change will completely remove the topic <strong>", old_topic, "</strong> from the allocation.</p>",
-            "<p>This is the last student/group assigned to this topic.</p>"
+            "<div style='color: #f39c12;'><i class='fa fa-exclamation-triangle'></i> Warning:</div>",
+            "<p>This change will separate student <strong>", student_id, "</strong> from their original group members.</p>",
+            "<p>Other members are currently assigned to: <strong>", current_teams, "</strong></p>"
           )),
           footer = tagList(
             modalButton("Cancel"),
-            actionButton("confirm_topic_removal", "Proceed Anyway", 
-                        class = "btn-danger")
+            actionButton("confirm_team_change", "Proceed Anyway", 
+                        class = "btn-warning")
           ),
           easyClose = TRUE
         ))
@@ -2143,31 +2423,96 @@ server <- function(input, output, session) {
         )
         return()  # Exit without making the change yet
       }
-      
-      # If no warnings triggered or user confirmed, proceed with the change
-      # Get the old individual score before updating
-      old_score <- params$edited_assignments$individual_score[row_idx]
-      
-      # Update the assignment
-      params$edited_assignments$project_team[row_idx] <- new_value
-      
-      # Recalculate individual score for just this student
-      data_list <- get_cached_data()
-      
-      # Extract topic from project_team
-      topic <- tryCatch({
-        # We need to use the new_value variable, not project_team
-        if (!is.character(new_value) || is.na(new_value) || new_value == "") {
-          return(NA)
-        }
-        parts <- strsplit(new_value, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else new_value
+    }
+    
+    # 2. Check if this change would cause a topic to disappear
+    # Count occurrences of the old topic
+    old_topic_count <- sum(grepl(paste0("^", old_topic), params$edited_assignments$project_team))
+    
+    if (old_topic_count == 1 && old_topic != new_topic) {
+      # Show warning - this is the last instance of this topic
+      showModal(modalDialog(
+        title = "Topic Removal Warning",
+        HTML(paste0(
+          "<div style='color: #e74c3c;'><i class='fa fa-exclamation-triangle'></i> Warning:</div>",
+          "<p>This change will completely remove the topic <strong>", old_topic, "</strong> from the allocation.</p>",
+          "<p>This is the last student/group assigned to this topic.</p>"
+        )),
+        footer = tagList(
+          modalButton("Cancel"),
+          actionButton("confirm_topic_removal", "Proceed Anyway", 
+                      class = "btn-danger")
+        ),
+        easyClose = TRUE
+      ))
+      # Store the pending change to apply after confirmation
+      params$pending_change <- list(
+        type = "project_team",
+        student_id = student_id,
+        new_value = new_value,
+        row_idx = row_idx,
+        old_score = params$edited_assignments$individual_score[row_idx]
+      )
+      return()  # Exit without making the change yet
+    }
+    
+    # If no warnings triggered or user confirmed, proceed with the change
+    # Get the old individual score before updating
+    old_score <- params$edited_assignments$individual_score[row_idx]
+    
+    # Update the assignment
+    params$edited_assignments$project_team[row_idx] <- new_value
+    
+    # Different handling of score calculation based on model type
+    if (model_num == 2) {
+      # MODEL 2: DIVERSITY - Use diversity model reader
+      data_list <- tryCatch({
+        read_data_diversity("survey_data.csv")
       }, error = function(e) {
-        warning("Invalid project_team format: ", new_value)
-        return(NA)
+        message("Error using diversity data reader: ", e$message)
+        get_cached_data()  # Fallback
       })
-      
-      if (!is.na(topic)) {
+    } else {
+      # Other models
+      data_list <- get_cached_data()
+    }
+    
+    # Extract topic from project_team
+    topic <- tryCatch({
+      # We need to use the new_value variable, not project_team
+      if (!is.character(new_value) || is.na(new_value) || new_value == "") {
+        return(NA)
+      }
+      parts <- strsplit(new_value, "_team")[[1]]
+      if (length(parts) > 0) parts[1] else new_value
+    }, error = function(e) {
+      warning("Invalid project_team format: ", new_value)
+      return(NA)
+    })
+    
+    if (!is.na(topic)) {
+      # For Model 2, we don't need subteam
+      if (model_num == 2) {
+        # Find student in diversity data
+        student_col <- "student_id"
+        student_idx <- which(data_list$survey_data[[student_col]] == student_id)
+        
+        if (length(student_idx) > 0) {
+          # Simplified calculation for diversity model
+          # Update preference score based on project_team only
+          # This is a placeholder - actual diversity score might use a different approach
+          new_score <- old_score  # For now, keep same score
+          
+          # Update individual score
+          params$edited_assignments$individual_score[row_idx] <- new_score
+          
+          # Update the edited total score (subtract old, add new)
+          # For diversity model, we might not change score just for team changes
+          params$edited_preference_score <- params$edited_preference_score
+          message("Updated team for student ", student_id, " (diversity model)")
+        }
+      } else {
+        # MODELS 1, 3, 4: Include subteam in score calculation
         subteam <- params$edited_assignments$subteam[row_idx]
         
         # Find group in survey data
@@ -2195,30 +2540,49 @@ server <- function(input, output, session) {
           }
         }
       }
-      
-      params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
-      
     }
-    # Force table redraw
-    session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }")
-    invalidateLater(100, session)
+    
+    params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
   }
-)
+  
+  # Force table redraw
+  session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }")
+  invalidateLater(100, session)
+})
 
-  # Handle confirmation for team change despite group separation
-  observeEvent(input$confirm_team_change, {
-    req(params$pending_change, params$pending_change$type == "project_team")
+# Handle confirmation for team change despite group separation
+observeEvent(input$confirm_team_change, {
+  req(params$pending_change, params$pending_change$type == "project_team")
+  
+  # Get model type
+  model_num <- as.numeric(model_type())
+  
+  # Apply the pending change
+  student_id <- params$pending_change$student_id
+  new_value <- params$pending_change$new_value
+  row_idx <- params$pending_change$row_idx
+  old_score <- params$pending_change$old_score
+  
+  # Update the assignment
+  params$edited_assignments$project_team[row_idx] <- new_value
+  
+  # Different handling based on model type
+  if (model_num == 2) {
+    # MODEL 2: DIVERSITY - Use diversity model reader
+    data_list <- tryCatch({
+      read_data_diversity("survey_data.csv")
+    }, error = function(e) {
+      message("Error using diversity data reader: ", e$message)
+      get_cached_data()  # Fallback
+    })
     
-    # Apply the pending change
-    student_id <- params$pending_change$student_id
-    new_value <- params$pending_change$new_value
-    row_idx <- params$pending_change$row_idx
-    old_score <- params$pending_change$old_score
-    
-    # Update the assignment
-    params$edited_assignments$project_team[row_idx] <- new_value
-    
-    # Recalculate individual score - similar to your existing code
+    # For diversity model, we don't need to change score when just changing team
+    # This is a placeholder - actual diversity score calculation might be different
+    new_score <- old_score
+    params$edited_assignments$individual_score[row_idx] <- new_score
+    message("Updated team for student ", student_id, " (diversity model)")
+  } else {
+    # MODELS 1, 3, 4: Recalculate score with subteam
     data_list <- get_cached_data()
     
     # Extract topic from project_team
@@ -2259,30 +2623,49 @@ server <- function(input, output, session) {
         }
       }
     }
-    
-    params$last_score_calc_time <- Sys.time()
-    params$pending_change <- NULL  # Clear the pending change
-    # Force table redraw
-    session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }") 
-    invalidateLater(100, session)
-    removeModal()
-    
-  })
+  }
+  
+  params$last_score_calc_time <- Sys.time()
+  params$pending_change <- NULL  # Clear the pending change
+  # Force table redraw
+  session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }") 
+  invalidateLater(100, session)
+  removeModal()
+})
 
-  # Handle confirmation for team change despite topic removal
-  observeEvent(input$confirm_topic_removal, {
-    req(params$pending_change, params$pending_change$type == "project_team")
+# Handle confirmation for team change despite topic removal
+observeEvent(input$confirm_topic_removal, {
+  req(params$pending_change, params$pending_change$type == "project_team")
+  
+  # Get model type
+  model_num <- as.numeric(model_type())
+  
+  # Apply the pending change
+  student_id <- params$pending_change$student_id
+  new_value <- params$pending_change$new_value
+  row_idx <- params$pending_change$row_idx
+  old_score <- params$pending_change$old_score
+  
+  # Update the assignment
+  params$edited_assignments$project_team[row_idx] <- new_value
+  
+  # Different handling based on model type
+  if (model_num == 2) {
+    # MODEL 2: DIVERSITY - Use diversity model reader
+    data_list <- tryCatch({
+      read_data_diversity("survey_data.csv")
+    }, error = function(e) {
+      message("Error using diversity data reader: ", e$message)
+      get_cached_data()  # Fallback
+    })
     
-    # Apply the pending change - same code as above
-    student_id <- params$pending_change$student_id
-    new_value <- params$pending_change$new_value
-    row_idx <- params$pending_change$row_idx
-    old_score <- params$pending_change$old_score
-    
-    # Update the assignment
-    params$edited_assignments$project_team[row_idx] <- new_value
-    
-    # Recalculate individual score - similar to your existing code
+    # For diversity model, we don't need to change score when just changing team
+    # This is a placeholder - actual diversity score calculation might be different
+    new_score <- old_score
+    params$edited_assignments$individual_score[row_idx] <- new_score
+    message("Updated team for student ", student_id, " (diversity model)")
+  } else {
+    # MODELS 1, 3, 4: Recalculate score with subteam
     data_list <- get_cached_data()
     
     # Extract topic from project_team
@@ -2323,149 +2706,94 @@ server <- function(input, output, session) {
         }
       }
     }
-    
-    params$last_score_calc_time <- Sys.time()
-    params$pending_change <- NULL  # Clear the pending change
-    # Force table redraw
-    session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }")
-    invalidateLater(100, session)
-    removeModal()
-  })
-
-
-  # ----------------------------------------------------------------------------------
-  # Handle subteam change
-  # ----------------------------------------------------------------------------------
-  observeEvent(input$subteam_change, {
-    req(params$edited_assignments, input$subteam_change)
-    
-    student_id <- input$subteam_change$student_id
-    new_value <- input$subteam_change$new_value
-    
-    # Find index in the edited assignments
-    row_idx <- which(params$edited_assignments$student_id == student_id)
-    
-    if (length(row_idx) > 0) {
-      # Get the current subteam and project team
-      current_subteam <- params$edited_assignments$subteam[row_idx]
-      current_project_team <- params$edited_assignments$project_team[row_idx]
-      
-      # Get the group_id for this student
-      group_id <- params$edited_assignments$group_id[row_idx]
-      
-      # 1. Check if this change would separate student from their group
-      # Find other students from the same group
-      group_members <- which(params$edited_assignments$group_id == group_id)
-      
-      # If any members will be on a different subteam after this change
-      will_separate_group <- FALSE
-      if (length(group_members) > 1) {
-        # If any other members will be on a different team/subteam
-        other_members <- group_members[group_members != row_idx]
-        same_team_members <- other_members[params$edited_assignments$project_team[other_members] == current_project_team]
-        
-        if (length(same_team_members) > 0) {
-          current_subteams <- unique(params$edited_assignments$subteam[same_team_members])
-          
-          if (length(current_subteams) == 1 && current_subteams != new_value) {
-            will_separate_group <- TRUE
-            # Show warning
-            showModal(modalDialog(
-              title = "Group Separation Warning",
-              HTML(paste0(
-                "<div style='color: #f39c12;'><i class='fa fa-exclamation-triangle'></i> Warning:</div>",
-                "<p>This change will separate student <strong>", student_id, "</strong> from their original group members.</p>",
-                "<p>Other members are currently assigned to subteam: <strong>", current_subteams, "</strong></p>"
-              )),
-              footer = tagList(
-                modalButton("Cancel"),
-                actionButton("confirm_subteam_change", "Proceed Anyway", 
-                            class = "btn-warning")
-              ),
-              easyClose = TRUE
-            ))
-            # Store the pending change to apply after confirmation
-            params$pending_change <- list(
-              type = "subteam",
-              student_id = student_id,
-              new_value = new_value,
-              row_idx = row_idx,
-              old_score = params$edited_assignments$individual_score[row_idx]
-            )
-            return()  # Exit without making the change yet
-          }
-        }
-      }
-      
-      # No warnings needed for subteam changes regarding topic disappearance
-      # (changing subteam won't remove a topic)
-      
-      # Get the old individual score before updating
-      old_score <- params$edited_assignments$individual_score[row_idx]
-      
-      # Update the assignment
-      params$edited_assignments$subteam[row_idx] <- new_value
-      
-      # Recalculate individual score for just this student
-      data_list <- get_cached_data()
-      
-      # Get project team and extract topic
-      project_team <- params$edited_assignments$project_team[row_idx]
-
-      topic <- tryCatch({
-        # We need to use the new_value variable, not project_team
-        if (!is.character(new_value) || is.na(new_value) || new_value == "") {
-          return(NA)
-        }
-        parts <- strsplit(new_value, "_team")[[1]]
-        if (length(parts) > 0) parts[1] else new_value
-      }, error = function(e) {
-        warning("Invalid project_team format: ", new_value)
-        return(NA)
-      })
-      
-      if (!is.na(topic)) {
-        # Find group in survey data
-        student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
-        group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
-          row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
-          any(row_data == student_id, na.rm = TRUE)
-        })
-        
-        if (any(group_indices)) {
-          group_idx <- which(group_indices)[1]
-          topic_idx <- match(topic, data_list$topics)
-          subteam_idx <- match(new_value, data_list$valid_subteams)
-          
-          if (!is.na(topic_idx) && !is.na(subteam_idx)) {
-            # Get preference score from the array
-            new_score <- data_list$pref_array[group_idx, topic_idx, subteam_idx]
-            
-            # Update individual score
-            params$edited_assignments$individual_score[row_idx] <- new_score
-            
-            # Update the edited total score (subtract old, add new)
-            params$edited_preference_score <- params$edited_preference_score - old_score + new_score
-            message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, ", new total: ", params$edited_preference_score)
-          }
-        }
-      }
-      
-      params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
-    }
-    invalidateLater(100, session)
   }
-)
+  
+  params$last_score_calc_time <- Sys.time()
+  params$pending_change <- NULL  # Clear the pending change
+  # Force table redraw
+  session$sendCustomMessage(type = "jsCode", "if (typeof table !== 'undefined') { table.draw(); }")
+  invalidateLater(100, session)
+  removeModal()
+})
 
-  # Handle confirmation for subteam change despite group separation
-  observeEvent(input$confirm_subteam_change, {
-    req(params$pending_change, params$pending_change$type == "subteam")
+# ------------------------------------------------------------------------------------------------
+# Handle subteam change (only for models 1 & 3- not for model 2)
+# ------------------------------------------------------------------------------------------------
+observeEvent(input$subteam_change, {
+  req(params$edited_assignments, input$subteam_change)
+  
+  # Get model type
+  model_num <- as.numeric(model_type())
+  
+  # Skip if model 2 (diversity model doesn't use subteams)
+  if (model_num == 2) {
+    message("Ignoring subteam change for diversity model (Model 2)")
+    return()
+  }
+  
+  student_id <- input$subteam_change$student_id
+  new_value <- input$subteam_change$new_value
+  
+  # Find index in the edited assignments
+  row_idx <- which(params$edited_assignments$student_id == student_id)
+  
+  if (length(row_idx) > 0) {
+    # Get the current subteam and project team
+    current_subteam <- params$edited_assignments$subteam[row_idx]
+    current_project_team <- params$edited_assignments$project_team[row_idx]
     
-    # Apply the pending change
-    student_id <- params$pending_change$student_id
-    new_value <- params$pending_change$new_value
-    row_idx <- params$pending_change$row_idx
-    old_score <- params$pending_change$old_score
+    # Get the group_id for this student
+    group_id <- params$edited_assignments$group_id[row_idx]
+    
+    # 1. Check if this change would separate student from their group
+    # Find other students from the same group
+    group_members <- which(params$edited_assignments$group_id == group_id)
+    
+    # If any members will be on a different subteam after this change
+    will_separate_group <- FALSE
+    if (length(group_members) > 1) {
+      # If any other members will be on a different team/subteam
+      other_members <- group_members[group_members != row_idx]
+      same_team_members <- other_members[params$edited_assignments$project_team[other_members] == current_project_team]
+      
+      if (length(same_team_members) > 0) {
+        current_subteams <- unique(params$edited_assignments$subteam[same_team_members])
+        
+        if (length(current_subteams) == 1 && current_subteams != new_value) {
+          will_separate_group <- TRUE
+          # Show warning
+          showModal(modalDialog(
+            title = "Group Separation Warning",
+            HTML(paste0(
+              "<div style='color: #f39c12;'><i class='fa fa-exclamation-triangle'></i> Warning:</div>",
+              "<p>This change will separate student <strong>", student_id, "</strong> from their original group members.</p>",
+              "<p>Other members are currently assigned to subteam: <strong>", current_subteams, "</strong></p>"
+            )),
+            footer = tagList(
+              modalButton("Cancel"),
+              actionButton("confirm_subteam_change", "Proceed Anyway", 
+                          class = "btn-warning")
+            ),
+            easyClose = TRUE
+          ))
+          # Store the pending change to apply after confirmation
+          params$pending_change <- list(
+            type = "subteam",
+            student_id = student_id,
+            new_value = new_value,
+            row_idx = row_idx,
+            old_score = params$edited_assignments$individual_score[row_idx]
+          )
+          return()  # Exit without making the change yet
+        }
+      }
+    }
+    
+    # No warnings needed for subteam changes regarding topic disappearance
+    # (changing subteam won't remove a topic)
+    
+    # Get the old individual score before updating
+    old_score <- params$edited_assignments$individual_score[row_idx]
     
     # Update the assignment
     params$edited_assignments$subteam[row_idx] <- new_value
@@ -2475,15 +2803,12 @@ server <- function(input, output, session) {
     
     # Get project team and extract topic
     project_team <- params$edited_assignments$project_team[row_idx]
+    
     topic <- tryCatch({
-      # We need to use the new_value variable, not project_team
-      if (!is.character(new_value) || is.na(new_value) || new_value == "") {
-        return(NA)
-      }
-      parts <- strsplit(new_value, "_team")[[1]]
-      if (length(parts) > 0) parts[1] else new_value
+      parts <- strsplit(project_team, "_team")[[1]]
+      if (length(parts) > 0) parts[1] else project_team
     }, error = function(e) {
-      warning("Invalid project_team format: ", new_value)
+      warning("Invalid project_team format: ", project_team)
       return(NA)
     })
     
@@ -2514,12 +2839,70 @@ server <- function(input, output, session) {
       }
     }
     
-    params$last_score_calc_time <- Sys.time()
-    params$pending_change <- NULL  # Clear the pending change
-    removeModal()
+    params$last_score_calc_time <- Sys.time()  # Record when we calculated the score
+  }
+  invalidateLater(100, session)
+})
+
+# Handle confirmation for subteam change despite group separation
+observeEvent(input$confirm_subteam_change, {
+  req(params$pending_change, params$pending_change$type == "subteam")
+  
+  # Apply the pending change
+  student_id <- params$pending_change$student_id
+  new_value <- params$pending_change$new_value
+  row_idx <- params$pending_change$row_idx
+  old_score <- params$pending_change$old_score
+  
+  # Update the assignment
+  params$edited_assignments$subteam[row_idx] <- new_value
+  
+  # Recalculate individual score for just this student
+  data_list <- get_cached_data()
+  
+  # Get project team and extract topic
+  project_team <- params$edited_assignments$project_team[row_idx]
+  topic <- tryCatch({
+    parts <- strsplit(project_team, "_team")[[1]]
+    if (length(parts) > 0) parts[1] else project_team
+  }, error = function(e) {
+    warning("Invalid project_team format: ", project_team)
+    return(NA)
   })
+  
+  if (!is.na(topic)) {
+    # Find group in survey data
+    student_cols <- grep("Student_ID", names(data_list$survey_data), value = TRUE)
+    group_indices <- sapply(1:nrow(data_list$survey_data), function(row_idx) {
+      row_data <- data_list$survey_data[row_idx, student_cols, drop = FALSE]
+      any(row_data == student_id, na.rm = TRUE)
+    })
+    
+    if (any(group_indices)) {
+      group_idx <- which(group_indices)[1]
+      topic_idx <- match(topic, data_list$topics)
+      subteam_idx <- match(new_value, data_list$valid_subteams)
+      
+      if (!is.na(topic_idx) && !is.na(subteam_idx)) {
+        # Get preference score from the array
+        new_score <- data_list$pref_array[group_idx, topic_idx, subteam_idx]
+        
+        # Update individual score
+        params$edited_assignments$individual_score[row_idx] <- new_score
+        
+        # Update the edited total score (subtract old, add new)
+        params$edited_preference_score <- params$edited_preference_score - old_score + new_score
+        message("Updated score for student ", student_id, ": ", old_score, " -> ", new_score, ", new total: ", params$edited_preference_score)
+      }
+    }
+  }
+  
+  params$last_score_calc_time <- Sys.time()
+  params$pending_change <- NULL  # Clear the pending change
+  removeModal()
+})
 
-
+ 
 
 
 # ------------------------------------------------------------------------------------------------

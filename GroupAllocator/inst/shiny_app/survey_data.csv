@@ -1,33 +1,9 @@
-Student_ID ##1,Student_ID ##2,Student_ID ##3,Student_ID ##4,First Choice (Topic),Second Choice (Topic),Third Choice (Topic),Fourth Choice (Topic),First Choice (Subteam),Second Choice (Subteam),Third Choice (Subteam),Fourth Choice (Subteam)
-,,,,,,,,,,,
-,,,student_67,FIFA video highlights,Storm cell tracking,,,Modeling team,Front-end team,,
-student_35,student_40,student_31,,Customer analytics,Storm cell tracking,Airline delay,Heavy traffic,Front-end team,Front-end team,Front-end team,Front-end team
-,,,student_24,Heavy traffic,Airline delay,Storm cell tracking,FIFA video highlights,Modeling team,Modeling team,Modeling team,Modeling team
-,,,,,,,,,,,
-,,,student_28,FIFA video highlights,Heavy traffic,Airline delay,Customer analytics,No preference,No preference,No preference,No preference
-,,,,,,,,Modeling team,,,
-student_41,student_45,,,Customer analytics,Customer analytics,Heavy traffic,Storm cell tracking,Front-end team,Modeling team,Front-end team,Front-end team
-,,,student_17,Customer analytics,Storm cell tracking,Heavy traffic,Airline delay,Modeling team,Modeling team,Front-end team,Modeling team
-,,,student_27,Customer analytics,Heavy traffic,Storm cell tracking,Airline delay,No preference,No preference,No preference,No preference
-student_34,student_60,student_62,student_56,FIFA video highlights,Heavy traffic,Storm cell tracking,Customer analytics,Front-end team,Front-end team,Front-end team,Front-end team
-student_48,student_54,,,Customer analytics,Airline delay,Heavy traffic,Storm cell tracking,Modeling team,Modeling team,Modeling team,Modeling team
-student_48,student_54,,,Customer analytics,Airline delay,Heavy traffic,Storm cell tracking,Modeling team,Modeling team,Modeling team,Modeling team
-,,,student_36,Airline delay,Customer analytics,Airline delay,Storm cell tracking,Modeling team,Modeling team,Front-end team,Modeling team
-student_20,student_61,student_52,,Customer analytics,Airline delay,Heavy traffic,Storm cell tracking,Modeling team,Modeling team,Modeling team,Modeling team
-,,,,,,,,,,,
-,,,student_29,Airline delay,Customer analytics,,,No preference,No preference,,
-student_46,student_38,student_25,student_22,FIFA video highlights,Airline delay,Heavy traffic,Airline delay,Modeling team,Modeling team,Modeling team,Front-end team
-,,,,,,,,,,,
-student_53,student_32,,,Airline delay,Customer analytics,Airline delay,Customer analytics,Front-end team,Modeling team,Modeling team,Front-end team
-,,,,,,,,,,,
-student_14,student_66,student_59,,Airline delay,Customer analytics,Airline delay,Customer analytics,Front-end team,Front-end team,Modeling team,Modeling team
-,,,,,,,,,,,
-,,,,,,,,,,,
-,,,student_15,Customer analytics,Airline delay,Storm cell tracking,Heavy traffic,No preference,No preference,No preference,No preference
-,,,,,,,,,,,
-,,,student_51,FIFA video highlights,Heavy traffic,Storm cell tracking,Customer analytics,No preference,No preference,No preference,No preference
-student_2,student_1,student_3,student_4,FIFA video highlights,Storm cell tracking,Heavy traffic,Airline delay,No preference,No preference,No preference,No preference
-,,,student_57,Storm cell tracking,Storm cell tracking,Customer analytics,Airline delay,Modeling team,Front-end team,No preference,No preference
-,,,,,,,,,,,
-student_9,student_30,student_39,student_26,Customer analytics,Heavy traffic,Airline delay,Storm cell tracking,Modeling team,Modeling team,Modeling team,Modeling team
-student_8,student_11,student_12,student_7,Customer analytics,Customer analytics,Airline delay,Airline delay,Modeling team,Front-end team,Modeling team,Front-end team
+﻿Student_ID ##1,Student_ID ##2,Student_ID ##3,Student_ID ##4,Rank Topic Preference,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Data
+stu 1,stu 2,stu 3,stu 4,Topic 1_Subteam A;Topic 2_Subteam B;Topic 1_Subteam B;Topic 3_Subteam B;Topic 3_Subteam A;Topic 4_Subteam A;Topic 4_Subteam B;Topic 2_Subteam A;Topic 5_Subteam A;Topic 5_Subteam B;,5,3,4,2,5,3,3,4,2,3,2,3,2,4,2,1,2,3,4,2
+stu 5,stu 6,stu 7,stu 8,Topic 5_Subteam B;Topic 5_Subteam A;Topic 3_Subteam B;Topic 2_Subteam B;Topic 2_Subteam A;Topic 1_Subteam B;Topic 4_Subteam B;Topic 1_Subteam A;Topic 4_Subteam A;Topic 3_Subteam A,1,2,3,2,1,2,4,4,5,4,1,2,3,4,2,5,3,3,4,4
+stu 9,stu 10,stu 11,stu 12,Topic 2_Subteam A;Topic 2_Subteam B;Topic 5_Subteam A;Topic 3_Subteam B;Topic 5_Subteam B;Topic 1_Subteam A;Topic 1_Subteam B;Topic 4_Subteam B;Topic 3_Subteam A;Topic 4_Subteam A,5,4,3,4,2,2,3,2,1,3,3,3,2,4,4,3,4,5,5,1
+stu 13,stu 14,stu 15,stu 16,Topic 2_Subteam B;Topic 4_Subteam A;Topic 3_Subteam A;Topic 3_Subteam B;Topic 5_Subteam A;Topic 1_Subteam B;Topic 4_Subteam B;Topic 5_Subteam B;Topic 1_Subteam A;Topic 2_Subteam A,1,2,1,1,2,3,2,3,2,3,5,3,1,4,2,3,3,3,3,3
+stu 17,stu 18,stu 19,stu 20,Topic 1_Subteam B;Topic 2_Subteam A;Topic 4_Subteam A;Topic 3_Subteam A;Topic 1_Subteam A;Topic 5_Subteam B;Topic 4_Subteam B;Topic 3_Subteam B;Topic 5_Subteam A;Topic 2_Subteam B,2,1,3,4,5,3,4,5,5,1,3,3,2,1,4,2,3,2,3,4
+stu 21,stu 22,,,Topic 5_Subteam B;Topic 5_Subteam A;Topic 2_Subteam B;Topic 3_Subteam B;Topic 2_Subteam A;Topic 4_Subteam A;Topic 3_Subteam A;Topic 1_Subteam B;Topic 1_Subteam A;Topic 4_Subteam B,5,4,4,3,3,3,3,3,3,3,,,,,,,,,,
+stu 23,stu 24,,,Topic 5_Subteam A;Topic 2_Subteam B;Topic 4_Subteam B;Topic 3_Subteam A;Topic 4_Subteam A;Topic 2_Subteam A;Topic 1_Subteam A;Topic 3_Subteam B;Topic 5_Subteam B;Topic 1_Subteam B,1,1,3,4,2,5,5,4,4,5,,,,,,,,,,
+stu 25,,,,Topic 4_Subteam B;Topic 4_Subteam A;Topic 1_Subteam B;Topic 3_Subteam B;Topic 1_Subteam A;Topic 2_Subteam B;Topic 5_Subteam B;Topic 3_Subteam A;Topic 2_Subteam A;Topic 5_Subteam A,1,2,3,2,1,,,,,,,,,,,,,,,

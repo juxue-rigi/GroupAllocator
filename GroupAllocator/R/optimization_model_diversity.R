@@ -430,20 +430,33 @@ run_diversity_optimization <- function(student_data_path = "survey_data.csv",
       solution_number = integer(0),
       stringsAsFactors = FALSE
     )
-    
+
     # Populate assignment dataframe
     for (t in 1:n_teams) {
       for (student_idx in teams[[t]]) {
-        results <- rbind(results, data.frame(
+        # Create a row with just the basic columns
+        row_data <- data.frame(
           student_id = data_list$survey_data$student_id[student_idx],
           project_team = paste0("Team_", t),
           subteam = "member",  # Default subteam for compatibility
           team_number = t,
           solution_number = solution_idx,
           stringsAsFactors = FALSE
-        ))
+        )
+        
+        # Add diversity category columns if they exist
+        for (col in diversity_cols) {
+          if (col %in% names(data_list$survey_data)) {
+            row_data[[col]] <- data_list$survey_data[[col]][student_idx]
+          }
+        }
+      
+        
+        # Append to results
+        results <- rbind(results, row_data)
       }
     }
+    
     
     # Skip empty solutions
     if (nrow(results) == 0) {
