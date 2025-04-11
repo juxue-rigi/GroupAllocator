@@ -1,0 +1,14 @@
+Student_ID ##1,Student_ID ##2,Student_ID ##3,Student_ID ##4,Rank Topic Preference,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##1 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##2 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##3 (1: almost no experience; 5: expert).Data,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Python,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Java,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Report Writing,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Visualization,Skill Rating for Student_ID ##4 (1: almost no experience; 5: expert).Data
+stu 1,stu 2,stu 3,stu 4,Topic A_Subteam A; Topic B_Subteam A; Topic C_Subteam A,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+stu 5,stu 6,stu 7,stu 8,Topic A_Subteam B; Topic B_Subteam B; Topic C_Subteam B,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+stu 9,stu 10,stu 11,stu 12,Topic B_Subteam A; Topic A_Subteam A; Topic D_Subteam A,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+stu 13,stu 14,stu 15,stu 16,Topic B_Subteam B; Topic A_Subteam B; Topic D_Subteam B,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+stu 17,stu 18,stu 19,stu 20,Topic C_Subteam A; Topic D_Subteam A; Topic A_Subteam A,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+stu 21,stu 22,stu 23,stu 24,Topic C_Subteam B; Topic D_Subteam B; Topic A_Subteam B,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+stu 25,stu 26,stu 27,stu 28,Topic D_Subteam A; Topic C_Subteam A; Topic B_Subteam A,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+stu 29,stu 30,stu 31,stu 32,Topic D_Subteam B; Topic C_Subteam B; Topic B_Subteam B,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3,3
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,
+,,,,,,,,,,,,,,,,,,,,,,,,

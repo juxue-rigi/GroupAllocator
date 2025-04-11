@@ -2,7 +2,7 @@
 # Read Project Parameters from UI inputs
 #--------------------------------------------------------------
 read_project_params <- function(team_size = 4, num_solutions = 3) {
-  # This function now accepts direct parameters instead of reading from CSV
+  # This function accepts direct parameters instead of reading from CSV
   list(
     c_team = team_size,            # Team capacity 
     x_topic_teams = 1,             # Set to 1 as we're not using topic-based allocation
@@ -84,56 +84,7 @@ extract_diversity_attributes <- function(survey_data) {
 }
 
 #--------------------------------------------------------------
-# Build Diversity Coefficient Matrix for Each Attribute
-#--------------------------------------------------------------
-build_diversity_coefficients <- function(survey_data, diversity_data) {
-  # Prepare empty matrices for each diversity attribute
-  diversity_cols <- diversity_data$columns
-  n_students <- nrow(survey_data)
-  
-  # Create matrices to store diversity coefficients
-  diversity_coefficients <- list()
-  
-  # For each diversity attribute
-  for (col in diversity_cols) {
-    # Get unique categories for this attribute
-    categories <- diversity_data$categories[[col]]
-    
-    if (length(categories) <= 1) {
-      message("Skipping diversity attribute '", col, "' as it has only ", length(categories), " categories")
-      next
-    }
-    
-    # Create a student-by-category matrix (1 if student has that category, 0 otherwise)
-    student_category_matrix <- matrix(0, nrow = n_students, ncol = length(categories))
-    colnames(student_category_matrix) <- categories
-    
-    # Fill the matrix
-    for (i in 1:n_students) {
-      category_val <- survey_data[[col]][i]
-      if (!is.na(category_val) && category_val %in% categories) {
-        category_idx <- match(category_val, categories)
-        student_category_matrix[i, category_idx] <- 1
-      }
-    }
-    
-    # Store this matrix
-    diversity_coefficients[[col]] <- student_category_matrix
-    
-    # Log for debugging
-    message("Created diversity coefficient matrix for attribute: ", col)
-    message("  with categories: ", paste(categories, collapse = ", "))
-  }
-  
-  # Return the list of coefficient matrices
-  list(
-    coefficients = diversity_coefficients,
-    columns = diversity_cols
-  )
-}
-
-#--------------------------------------------------------------
-# Create Similarity/Dissimilarity Matrices between Students
+# Create Diversity Matrix between Students
 #--------------------------------------------------------------
 create_diversity_matrix <- function(survey_data, diversity_data) {
   library(dplyr)
@@ -141,17 +92,15 @@ create_diversity_matrix <- function(survey_data, diversity_data) {
   diversity_cols <- diversity_data$columns
   n_students <- nrow(survey_data)
   
-  # Create a similarity matrix (higher values = more similar, less diverse)
-  # and a dissimilarity matrix (higher values = more diverse)
-  similarity_matrix <- matrix(0, nrow = n_students, ncol = n_students)
+  # Create a diversity matrix (higher values = more diverse)
   diversity_matrix <- matrix(0, nrow = n_students, ncol = n_students)
   
   # For each pair of students
   for (i in 1:(n_students-1)) {
     for (j in (i+1):n_students) {
-      # Count how many diversity attributes match
-      match_count <- 0
+      # Count how many diversity attributes differ
       diversity_count <- 0
+      total_attributes <- 0
       
       for (col in diversity_cols) {
         # Skip missing values
@@ -159,40 +108,29 @@ create_diversity_matrix <- function(survey_data, diversity_data) {
           next
         }
         
+        total_attributes <- total_attributes + 1
+        
         # Compare categories
-        if (survey_data[[col]][i] == survey_data[[col]][j]) {
-          match_count <- match_count + 1
-        } else {
+        if (survey_data[[col]][i] != survey_data[[col]][j]) {
           diversity_count <- diversity_count + 1
         }
       }
       
-      # Set the matrices symmetrically
-      similarity_matrix[i, j] <- match_count
-      similarity_matrix[j, i] <- match_count
-      
-      diversity_matrix[i, j] <- diversity_count
-      diversity_matrix[j, i] <- diversity_count
+      # Set the matrix symmetrically (normalized by total attributes if available)
+      if (total_attributes > 0) {
+        # Normalize to 0-1 range
+        normalized_diversity <- diversity_count / total_attributes
+        diversity_matrix[i, j] <- normalized_diversity
+        diversity_matrix[j, i] <- normalized_diversity
+      }
     }
   }
   
-  # Scale to 0-1 range if there are any non-zero values
-  if (max(similarity_matrix) > 0) {
-    similarity_matrix <- similarity_matrix / max(similarity_matrix)
-  }
-  if (max(diversity_matrix) > 0) {
-    diversity_matrix <- diversity_matrix / max(diversity_matrix)
-  }
-  
-  # Return both matrices
-  list(
-    similarity = similarity_matrix,    # Higher = more similar
-    diversity = diversity_matrix       # Higher = more diverse
-  )
+  return(diversity_matrix)
 }
 
 #--------------------------------------------------------------
-# Consolidated Function to Read All Data for the Diversity Optimization Model
+# Consolidated Function to Read All Data for the MIP Model
 #--------------------------------------------------------------
 read_data <- function(student_data_path, team_size = 4, num_solutions = 3) {
   # Check if required packages are installed
@@ -202,6 +140,10 @@ read_data <- function(student_data_path, team_size = 4, num_solutions = 3) {
       stop("Package '", pkg, "' needed for this function. Please install it.")
     }
   }
+  
+  # Load required packages
+  library(dplyr)
+  library(tidyr)
   
   message("Reading data from: ", student_data_path)
   
@@ -227,11 +169,8 @@ read_data <- function(student_data_path, team_size = 4, num_solutions = 3) {
   # 3) Extract diversity attributes
   diversity_data <- extract_diversity_attributes(survey_data)
   
-  # 4) Build diversity coefficient matrices
-  diversity_coefficients <- build_diversity_coefficients(survey_data, diversity_data)
-  
-  # 5) Create diversity matrices (similarity/dissimilarity between students)
-  diversity_matrices <- create_diversity_matrix(survey_data, diversity_data)
+  # 4) Create diversity matrix (diversity between students)
+  diversity_matrix <- create_diversity_matrix(survey_data, diversity_data)
   
   # Some useful parameters
   n_students <- nrow(survey_data)
@@ -252,13 +191,7 @@ read_data <- function(student_data_path, team_size = 4, num_solutions = 3) {
     n_teams = n_teams,
     student_ids = survey_data$student_id,
     diversity_data = diversity_data,
-    diversity_coef = diversity_coefficients,
-    diversity_matrices = diversity_matrices,
-    survey_data = survey_data,
-    
-    # For compatibility with other models
-    topics = c("team"),
-    valid_subteams = c("member"),
-    pref_array = array(0) # Placeholder pref array
+    diversity_matrix = diversity_matrix,
+    survey_data = survey_data
   )
 }

@@ -1064,9 +1064,6 @@ output$editable_allocation_table <- DT::renderDataTable({
   # Get model type
   model_num <- as.numeric(model_type())
   
-  # Fix data types for skill columns
-  params$edited_assignments <- fix_skill_columns(params$edited_assignments)
-  
   # Make sure we have valid data structure
   if (nrow(params$edited_assignments) == 0) {
     message("Warning: edited_assignments has 0 rows")
